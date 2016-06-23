@@ -17,19 +17,27 @@
  */
 
 #ifndef SYBASE_DRIVER_HPP
-#define	SYBASE_DRIVER_HPP
+#define SYBASE_DRIVER_HPP
 
 #include <ctpublic.h>
 #include <cstring>
 #include <vector>
 #include <map>
+#include <functional>
+#include <algorithm>
+#include <type_traits>
 #include "utilities.hpp"
 #include "driver.hpp"
 
 namespace vgi { namespace dbconn { namespace dbd { namespace sybase {
 
-CS_INT TRUE = CS_TRUE;
-CS_INT FALSE = CS_FALSE;
+static auto TRUE = CS_TRUE;
+static auto FALSE = CS_FALSE;
+
+using Context = CS_CONTEXT;
+using Connection = CS_CONNECTION;
+using ServerMessage = CS_SERVERMSG;
+using ClientMessage = CS_CLIENTMSG;
 
 enum class cfg_type : char
 {
@@ -37,21 +45,12 @@ enum class cfg_type : char
     CS_LIB
 };
 
-enum class cmd_type : CS_INT
-{
-    LANG_CMD = CS_LANG_CMD,
-    MSG_CMD = CS_MSG_CMD,
-    RPC_CMD = CS_RPC_CMD,
-    SEND_DATA_CMD = CS_SEND_DATA_CMD,
-    PACKAGE_CMD = CS_PACKAGE_CMD,
-    SEND_BULK_CMD = CS_SEND_BULK_CMD
-};
-
 enum class action : CS_INT
 {
     SET = CS_SET,
     GET = CS_GET,
-    CLEAR = CS_CLEAR
+    CLEAR = CS_CLEAR,
+    SUPPORTED = CS_SUPPORTED // only used for connection properties
 };
 
 enum class debug_flag : CS_INT
@@ -92,37 +91,32 @@ class connection;
  */
 class result_set : public dbi::iresult_set
 {
-public:
-	class column_data
-	{
-	public:
-		CS_INT length;
-		CS_INT indicator; // indicator
+private:
+    struct column_data
+    {
+        CS_INT length = 0;
+        CS_SMALLINT indicator = 0;
+        std::vector<CS_CHAR> data;
 
-		column_data() : length(0), indicator(0), data(0)
-        { }
-
-		void allocate(const size_t size)
-		{
-			data.resize(size + 1, '\0');
-		}
+        void allocate(const size_t size)
+        {
+            data.resize(size + 1, '\0');
+        }
 
         operator char*()
         {
             return data.data();
         }
-
-	private:
-		std::vector<CS_CHAR> data;
-	};
+    };
 
 public:
     void clear()
     {
-        columns.clear();
         columndata.clear();
         name2index.clear();
         row_cnt = 0;
+        affected_rows = 0;
+        more_res = false;
     }
 
     virtual bool has_data()
@@ -132,30 +126,7 @@ public:
 
     virtual bool more_results()
     {
-        CS_INT res;
-        bool done = false;
-        clear();
-        do_cancel = true;
-        while (false == done)
-        {
-            retcode = ct_results(cscommand, &res);
-            switch (retcode)
-            {
-            case CS_SUCCEED:
-                done = process_ct_result(res);
-                break;
-            case CS_END_RESULTS:
-            case CS_CANCELED:
-                return false;
-            case CS_FAIL:
-                cancel();
-                throw std::runtime_error(std::string(__FUNCTION__).append(": Failed to get results"));
-            default:
-                cancel();
-                throw std::runtime_error(std::string(__FUNCTION__).append(": Failed ct_results returned unknown ret_code"));
-            }
-        }
-        return true;
+        return more_res;
     }
 
     virtual size_t row_count() const
@@ -163,19 +134,26 @@ public:
         return row_cnt;
     }
 
+    virtual size_t rows_affected() const
+    {
+        return affected_rows;
+    }
+
     virtual size_t column_count() const
     {
         return columns.size();
     }
 
-    virtual std::string column_name(size_t index)
+    virtual std::string column_name(size_t col_idx)
     {
-        return columns[index].name;
+        if (col_idx >= columns.size())
+            throw std::runtime_error(std::string(__FUNCTION__).append(": Invalid column index"));
+        return columns[col_idx].name;
     }
 
     virtual int column_index(const std::string& col_name)
     {
-        for (size_t n = 0; n < columns.size(); ++n)
+        for (auto n = 0U; n < columns.size(); ++n)
         {
             if (0 == std::strcmp(col_name.c_str(), columns[n].name))
                 return n;
@@ -194,180 +172,184 @@ public:
                 row_cnt += result;
                 return true;
             }
+            else
+                next_result();
         }
         return false;
     }
 
-    virtual bool is_null(unsigned int colidx)
+    virtual bool is_null(size_t col_idx)
     {
-        return (CS_NULLDATA == (CS_SMALLINT)columndata[colidx].indicator);
+        if (col_idx >= columns.size())
+            throw std::runtime_error(std::string(__FUNCTION__).append(": Invalid column index"));
+        return (CS_NULLDATA == columndata[col_idx].indicator);
     }
 
-    virtual int16_t get_short(unsigned int colidx)
+    virtual int16_t get_short(size_t col_idx)
     {
-        if (CS_TINYINT_TYPE == columns[colidx].datatype)
-            return get<CS_TINYINT>(colidx);
-        if (CS_SMALLINT_TYPE == columns[colidx].datatype)
-            return get<CS_SMALLINT>(colidx);
+        if (CS_TINYINT_TYPE == columns[col_idx].datatype)
+            return get<CS_TINYINT>(col_idx);
+        if (CS_SMALLINT_TYPE == columns[col_idx].datatype)
+            return get<CS_SMALLINT>(col_idx);
         throw std::runtime_error(std::string(__FUNCTION__).append(": Invalid column data type (supported: tinyint, smallint)"));
     }
 
-    virtual uint16_t get_ushort(unsigned int colidx)
+    virtual uint16_t get_ushort(size_t col_idx)
     {
-        if (CS_TINYINT_TYPE == columns[colidx].datatype)
-            return get<CS_TINYINT>(colidx);
+        if (CS_TINYINT_TYPE == columns[col_idx].datatype)
+            return get<CS_TINYINT>(col_idx);
 #ifdef CS_USMALLINT_TYPE
-        if (CS_USMALLINT_TYPE == columns[colidx].datatype)
-            return get<CS_USMALLINT>(colidx);
+        if (CS_USMALLINT_TYPE == columns[col_idx].datatype)
+            return get<CS_USMALLINT>(col_idx);
 #endif
         throw std::runtime_error(std::string(__FUNCTION__).append(": Invalid column data type (supported: tinyint, usmallint)"));
     }
 
-    virtual int32_t get_int(unsigned int colidx)
+    virtual int32_t get_int(size_t col_idx)
     {
-        switch(columns[colidx].datatype)
+        switch (columns[col_idx].datatype)
         {
             case CS_TINYINT_TYPE:
-                return get<CS_TINYINT>(colidx);
+                return get<CS_TINYINT>(col_idx);
             case CS_SMALLINT_TYPE:
-                return get<CS_SMALLINT>(colidx);
+                return get<CS_SMALLINT>(col_idx);
 #ifdef CS_USMALLINT_TYPE
-        if (CS_USMALLINT_TYPE == columns[colidx].datatype)
-            return get<CS_USMALLINT>(colidx);
+        if (CS_USMALLINT_TYPE == columns[col_idx].datatype)
+            return get<CS_USMALLINT>(col_idx);
 #endif
             case CS_INT_TYPE:
-                return get<CS_INT>(colidx);
+                return get<CS_INT>(col_idx);
             default:
                 throw std::runtime_error(std::string(__FUNCTION__).append(": Invalid column data type (supported: tinyint, smallint, usmallint, int)"));
         }
     }
 
-    virtual uint32_t get_uint(unsigned int colidx)
+    virtual uint32_t get_uint(size_t col_idx)
     {
-        switch(columns[colidx].datatype)
+        switch (columns[col_idx].datatype)
         {
             case CS_TINYINT_TYPE:
-                return get<CS_TINYINT>(colidx);
+                return get<CS_TINYINT>(col_idx);
 #ifdef CS_USMALLINT_TYPE
             case CS_USMALLINT_TYPE:
-                return get<CS_USMALLINT>(colidx);
+                return get<CS_USMALLINT>(col_idx);
 #endif
 #ifdef CS_UINT_TYPE
             case CS_UINT_TYPE:
-                return get<CS_UINT>(colidx);
+                return get<CS_UINT>(col_idx);
 #endif
             default:
                 throw std::runtime_error(std::string(__FUNCTION__).append(": Invalid column data type (supported: tinyint, usmallint, uint)"));
         }
     }
 
-    virtual int64_t get_long(unsigned int colidx)
+    virtual int64_t get_long(size_t col_idx)
     {
-        switch(columns[colidx].datatype)
+        switch (columns[col_idx].datatype)
         {
             case CS_TINYINT_TYPE:
-                return get<CS_TINYINT>(colidx);
+                return get<CS_TINYINT>(col_idx);
             case CS_SMALLINT_TYPE:
-                return get<CS_SMALLINT>(colidx);
+                return get<CS_SMALLINT>(col_idx);
 #ifdef CS_USMALLINT_TYPE
-        if (CS_USMALLINT_TYPE == columns[colidx].datatype)
-            return get<CS_USMALLINT>(colidx);
+        if (CS_USMALLINT_TYPE == columns[col_idx].datatype)
+            return get<CS_USMALLINT>(col_idx);
 #endif
             case CS_INT_TYPE:
-                return get<CS_INT>(colidx);
+                return get<CS_INT>(col_idx);
 #ifdef CS_UINT_TYPE
             case CS_UINT_TYPE:
-                return get<CS_UINT>(colidx);
+                return get<CS_UINT>(col_idx);
 #endif
 #ifdef CS_BIGINT_TYPE
             case CS_BIGINT_TYPE:
-                return get<CS_BIGINT>(colidx);
+                return get<CS_BIGINT>(col_idx);
 #endif
             case CS_DECIMAL_TYPE:
             case CS_NUMERIC_TYPE:
-                return getnum<int64_t>(colidx);
+                return getnum<int64_t>(col_idx);
             default:
                 throw std::runtime_error(std::string(__FUNCTION__).append(": Invalid column data type (supported: tinyint, smallint, usmallint, int, uint, bigint)"));
         }
     }
 
-    virtual uint64_t get_ulong(unsigned int colidx)
+    virtual uint64_t get_ulong(size_t col_idx)
     {
-        switch(columns[colidx].datatype)
+        switch (columns[col_idx].datatype)
         {
             case CS_TINYINT_TYPE:
-                return get<CS_TINYINT>(colidx);
+                return get<CS_TINYINT>(col_idx);
 #ifdef CS_USMALLINT_TYPE
             case CS_USMALLINT_TYPE:
-                return get<CS_USMALLINT>(colidx);
+                return get<CS_USMALLINT>(col_idx);
 #endif
 #ifdef CS_UINT_TYPE
             case CS_UINT_TYPE:
-                return get<CS_UINT>(colidx);
+                return get<CS_UINT>(col_idx);
 #endif
 #ifdef CS_UBIGINT_TYPE
             case CS_UBIGINT_TYPE:
-                return get<CS_UBIGINT>(colidx);
+                return get<CS_UBIGINT>(col_idx);
 #endif
             case CS_DECIMAL_TYPE:
             case CS_NUMERIC_TYPE:
-                return getnum<uint64_t>(colidx);
+                return getnum<uint64_t>(col_idx);
             default:
                 throw std::runtime_error(std::string(__FUNCTION__).append(": Invalid column data type (supported: tinyint, usmallint, uint, ubigint)"));
         }
     }
 
-    virtual float get_float(unsigned int colidx)
+    virtual float get_float(size_t col_idx)
     {
-        if (CS_REAL_TYPE == columns[colidx].datatype)
-            return get<CS_REAL>(colidx);
-        if (CS_FLOAT_TYPE == columns[colidx].datatype && columndata[colidx].length <= 4)
-            return get<CS_FLOAT>(colidx);
+        if (CS_REAL_TYPE == columns[col_idx].datatype)
+            return get<CS_REAL>(col_idx);
+        if (CS_FLOAT_TYPE == columns[col_idx].datatype && columndata[col_idx].length <= 4)
+            return get<CS_FLOAT>(col_idx);
         throw std::runtime_error(std::string(__FUNCTION__).append(": Invalid column data type (supported: real, float(p) if p < 16)"));
     }
 
-    virtual double get_double(unsigned int colidx)
+    virtual double get_double(size_t col_idx)
     {
-        switch(columns[colidx].datatype)
+        switch (columns[col_idx].datatype)
         {
             case CS_REAL_TYPE:
-                return get<CS_REAL>(colidx);
+                return get<CS_REAL>(col_idx);
             case CS_FLOAT_TYPE:
-                return get<CS_FLOAT>(colidx);
+                return get<CS_FLOAT>(col_idx);
             case CS_DECIMAL_TYPE:
             case CS_NUMERIC_TYPE:
-                return getnum<double>(colidx);
+                return getnum<double>(col_idx);
             default:
                 throw std::runtime_error(std::string(__FUNCTION__).append(": Invalid column data type (supported: real, float, numeric/decimal)"));
         }
     }
 
-    virtual long double get_ldouble(unsigned int colidx)
+    virtual long double get_ldouble(size_t col_idx)
     {
-        switch(columns[colidx].datatype)
+        switch (columns[col_idx].datatype)
         {
             case CS_REAL_TYPE:
-                return get<CS_REAL>(colidx);
+                return get<CS_REAL>(col_idx);
             case CS_FLOAT_TYPE:
-                return get<CS_FLOAT>(colidx);
+                return get<CS_FLOAT>(col_idx);
             case CS_DECIMAL_TYPE:
             case CS_NUMERIC_TYPE:
-                return getnum<long double>(colidx);
+                return getnum<long double>(col_idx);
             default:
                 throw std::runtime_error(std::string(__FUNCTION__).append(": Invalid column data type (supported: real, float, numeric, decimal)"));
         }
     }
 
-    virtual bool get_bool(unsigned int colidx)
+    virtual bool get_bool(size_t col_idx)
     {
-        if (CS_BIT_TYPE != columns[colidx].datatype)
+        if (CS_BIT_TYPE != columns[col_idx].datatype)
             throw std::runtime_error(std::string(__FUNCTION__).append(": Invalid column data type (supported: bit)"));
-        return get<bool>(colidx);
+        return get<bool>(col_idx);
     }
 
-    virtual char get_char(unsigned int colidx)
+    virtual char get_char(size_t col_idx)
     {
-        switch(columns[colidx].datatype)
+        switch (columns[col_idx].datatype)
         {
             case CS_CHAR_TYPE:
             case CS_LONGCHAR_TYPE:
@@ -377,12 +359,12 @@ public:
             default:
                 throw std::runtime_error(std::string(__FUNCTION__).append(": Invalid column data type (supported: char, varchar, text)"));
         }
-        return get<char>(colidx);
+        return get<char>(col_idx);
     }
 
-    virtual std::string get_string(unsigned int colidx)
+    virtual std::string get_string(size_t col_idx)
     {
-        switch(columns[colidx].datatype)
+        switch (columns[col_idx].datatype)
         {
             case CS_CHAR_TYPE:
             case CS_LONGCHAR_TYPE:
@@ -392,35 +374,35 @@ public:
             default:
                 throw std::runtime_error(std::string(__FUNCTION__).append(": Invalid column data type (supported: char, varchar, text)"));
         }
-        return std::string(columndata[colidx]);
+        return std::move(std::string(columndata[col_idx]));
     }
 
-    virtual int get_date(unsigned int colidx)
+    virtual int get_date(size_t col_idx)
     {
-        if (CS_TIME_TYPE == columns[colidx].datatype
+        if (CS_TIME_TYPE == columns[col_idx].datatype
 #ifdef CS_BIGTIME_TYPE
-            || CS_BIGTIME_TYPE == columns[colidx].datatype
+            || CS_BIGTIME_TYPE == columns[col_idx].datatype
 #endif
            )
             throw std::runtime_error(std::string(__FUNCTION__).append(": Invalid column data type (supported: date, datetime, smalldatetime, bigdatetime)"));
-        getdtrec(colidx);
+        getdtrec(col_idx);
         return daterec.dateyear * 10000 + (daterec.datemonth + 1) * 100 + daterec.datedmonth;
     }
 
-    virtual double get_time(unsigned int colidx)
+    virtual double get_time(size_t col_idx)
     {
-        if (CS_DATE_TYPE == columns[colidx].datatype)
+        if (CS_DATE_TYPE == columns[col_idx].datatype)
             throw std::runtime_error(std::string(__FUNCTION__).append(": Invalid column data type (supported: time, datetime, smalldatetime, bigdatetime)"));
-        getdtrec(colidx);
+        getdtrec(col_idx);
         return (double)(daterec.datehour * 10000 + daterec.dateminute * 100 + daterec.datesecond) + (double)daterec.datemsecond / 1000.0;
     }
 
-    virtual time_t get_datetime(unsigned int colidx)
+    virtual time_t get_datetime(size_t col_idx)
     {
-        if (CS_TIME_TYPE == columns[colidx].datatype)
+        if (CS_TIME_TYPE == columns[col_idx].datatype)
             throw std::runtime_error(std::string(__FUNCTION__).append(": Invalid column data type (supported: date, datetime, smalldatetime, bigdatetime)"));
-        getdtrec(colidx);
-        memset(&stm, 0, sizeof(stm));
+        getdtrec(col_idx);
+        std::memset(&stm, 0, sizeof(stm));
         stm.tm_sec = daterec.datesecond;
         stm.tm_min = daterec.dateminute;
         stm.tm_hour = daterec.datehour;
@@ -431,9 +413,9 @@ public:
         return mktime(&stm);
     }
 
-    virtual char16_t get_unichar(unsigned int colidx)
+    virtual char16_t get_unichar(size_t col_idx)
     {
-        switch(columns[colidx].datatype)
+        switch (columns[col_idx].datatype)
         {
             case CS_UNICHAR_TYPE:
 #ifdef CS_UNITEXT_TYPE
@@ -443,12 +425,12 @@ public:
             default:
                 throw std::runtime_error(std::string(__FUNCTION__).append(": Invalid column data type"));
         }
-        return get<CS_UNICHAR>(colidx);
+        return get<CS_UNICHAR>(col_idx);
     }
 
-    virtual std::u16string get_unistring(unsigned int colidx)
+    virtual std::u16string get_unistring(size_t col_idx)
     {
-        switch(columns[colidx].datatype)
+        switch (columns[col_idx].datatype)
         {
             case CS_UNICHAR_TYPE:
 #ifdef CS_UNITEXT_TYPE
@@ -458,15 +440,15 @@ public:
             default:
                 throw std::runtime_error(std::string(__FUNCTION__).append(": Invalid column data type"));
         }
-        return std::u16string(reinterpret_cast<char16_t*>((char*)columndata[colidx]));
+        return std::u16string(reinterpret_cast<char16_t*>((char*)columndata[col_idx]));
     }
 
-    virtual std::vector<uint8_t> get_image(unsigned int colidx)
+    virtual std::vector<uint8_t> get_image(size_t col_idx)
     {
-        if (CS_IMAGE_TYPE == columns[colidx].datatype)
+        if (CS_IMAGE_TYPE == columns[col_idx].datatype)
         {
-            std::vector<uint8_t> t(columndata[colidx].length);
-            memcpy(reinterpret_cast<void*>(t.data()), columndata[colidx], columndata[colidx].length);
+            std::vector<uint8_t> t(columndata[col_idx].length);
+            std::memcpy(reinterpret_cast<void*>(t.data()), columndata[col_idx], columndata[col_idx].length);
             return t;
         }
         throw std::runtime_error(std::string(__FUNCTION__).append(": Invalid column data type"));
@@ -477,7 +459,7 @@ public:
         if (true == do_cancel)
         {
             do_cancel = false;
-            if (CS_SUCCEED != ct_cancel(NULL, cscommand, CS_CANCEL_CURRENT))
+            if (CS_SUCCEED != ct_cancel(nullptr, cscommand, CS_CANCEL_CURRENT))
                 return false;
         }
         return true;
@@ -488,7 +470,7 @@ public:
         if (true == do_cancel) // TODO
         {
             do_cancel = false;
-            if (CS_SUCCEED != ct_cancel(NULL, cscommand, CS_CANCEL_ALL))
+            if (CS_SUCCEED != ct_cancel(nullptr, cscommand, CS_CANCEL_ALL))
                 return false;
         }
         return true;
@@ -497,122 +479,174 @@ public:
 private:
     friend class statement;
 
-    result_set() : do_cancel(false), cscontext(nullptr), cscommand(nullptr), row_cnt(0)
-    {
-    }
-
+    result_set() {}
     result_set(const result_set& rs) = delete;
     result_set& operator=(const result_set& rs) = delete;
+    
+
+    bool next_result()
+    {
+        CS_INT res;
+        auto done = false;
+        auto failed_cnt = 0;
+        clear();
+        do_cancel = true;
+        while (false == done)
+        {
+            retcode = ct_results(cscommand, &res);
+            switch (retcode)
+            {
+            case CS_SUCCEED:
+                done = process_ct_result(res);
+                if (true == done)
+                {
+                    if (true == has_data())
+                        more_res = true;
+                    else
+                        done = false;
+                }
+                else if (CS_CMD_FAIL == res)
+                    failed_cnt += 1;
+                break;
+            case CS_END_RESULTS:
+            case CS_CANCELED:
+                done = true;
+                break;
+            case CS_FAIL:
+                cancel();
+                throw std::runtime_error(std::string(__FUNCTION__).append(": Failed to get results"));
+            default:
+                cancel();
+                throw std::runtime_error(std::string(__FUNCTION__).append(": Failed ct_results returned unknown ret_code"));
+            }
+        }
+        if (failed_cnt > 0)
+        {
+            throw std::runtime_error(std::string(__FUNCTION__).append(": Failed to execute ").append(std::to_string(failed_cnt)).append(" command(s)"));
+        }
+        return more_res;
+    }
 
     bool process_ct_result(CS_INT res)
     {
         switch (res)
         {
-        case CS_CMD_DONE: // done processing one result set
-            if (CS_SUCCEED != ct_res_info(cscommand, CS_ROW_COUNT, &res, CS_UNUSED, NULL))
-                throw std::runtime_error(std::string(__FUNCTION__).append(": Failed to get result row count"));
-            row_cnt = res > 0 ? res : 0;
-            return true;
-        case CS_ROWFMT_RESULT:
-            std::cout << "process_ct_result(): CS_ROWFMT_RESULT\n";
-            if (CS_SUCCEED != ct_res_info(cscommand, CS_ROW_COUNT, &res, CS_UNUSED, NULL))
-                throw std::runtime_error(std::string(__FUNCTION__).append(": Failed to get result row count"));
-            row_cnt = res > 0 ? res : 0;
-            break;
         case CS_PARAM_RESULT:
         case CS_STATUS_RESULT:
         case CS_CURSOR_RESULT:
         case CS_ROW_RESULT:
-            std::cout << "process_ct_result(): CS_ROW_RESULT\n";
-            process_result(false);
+            process_result(false, true);
             return true;
         case CS_COMPUTE_RESULT:
-            std::cout << "process_ct_result(): CS_COMPUTE_RESULT\n";
-            process_result(true);
+            process_result(true, true);
             return true;
-        case CS_COMPUTEFMT_RESULT:
-        case CS_MSG_RESULT:
         case CS_DESCRIBE_RESULT:
+            process_result(false, false);
+            break;
+        case CS_CMD_DONE:
+            if (CS_SUCCEED != ct_res_info(cscommand, CS_ROW_COUNT, &res, CS_UNUSED, nullptr))
+                throw std::runtime_error(std::string(__FUNCTION__).append(": Failed to get result row count"));
+            affected_rows += res > 0 ? res : 0;
+            break;
+        case CS_ROWFMT_RESULT: // not supported. seen only when the CS_EXPOSE_FORMATS property is enabled
+        case CS_COMPUTEFMT_RESULT:// not supported. seen only when the CS_EXPOSE_FORMATS property is enabled
+        case CS_MSG_RESULT: // not supported
+            break;
         case CS_CMD_SUCCEED:
             break;
         case CS_CMD_FAIL:
-            while (CS_SUCCEED == ct_results(cscommand, &res) && CS_CMD_DONE != res);
-            throw std::runtime_error(std::string(__FUNCTION__).append(": Failed to execute command"));
+            break;
         default:
             throw std::runtime_error(std::string(__FUNCTION__).append(": Unknown return from ct_results: ").append(std::to_string(res)));
         }
         return false;
     }
 
-    void process_result(bool compute)
+    void process_result(bool compute, bool bind)
     {
-        CS_INT colcnt = 0;
-        if (CS_SUCCEED != ct_res_info(cscommand, CS_NUMDATA, &colcnt, CS_UNUSED, NULL))
+        auto colcnt = 0;
+        if (CS_SUCCEED != ct_res_info(cscommand, CS_NUMDATA, &colcnt, CS_UNUSED, nullptr))
             throw std::runtime_error(std::string(__FUNCTION__).append(": Failed to get number of columns"));
         if (colcnt <= 0)
             throw std::runtime_error(std::string(__FUNCTION__).append(": Returned zero columns"));
+        std::vector<std::string> colnames;
+        if (compute)
+        {
+            for (auto& dfmt : columns)
+                colnames.push_back(dfmt.name);
+        }
         columns.resize(colcnt);
         columndata.resize(colcnt);
-        CS_INT agg_op;
-        for (CS_INT i = 0; i < colcnt; ++i)
+        auto agg_op = 0;
+        auto col_id = 0;
+        for (auto i = 0; i < colcnt; ++i)
         {
+            std::memset(&columns[i], 0, sizeof(CS_DATAFMT));
             if (CS_SUCCEED != ct_describe(cscommand, i + 1, &(columns[i])))
                 throw std::runtime_error(std::string(__FUNCTION__).append(": Failed to get column description: index ").append(std::to_string(i)));
             if (compute)
             {
                 if (CS_SUCCEED != ct_compute_info(cscommand, CS_COMP_OP, i + 1, &agg_op, CS_UNUSED, &(columns[i].namelen)))
-                    throw std::runtime_error(std::string(__FUNCTION__).append(": Failed compute info call"));
+                    throw std::runtime_error(std::string(__FUNCTION__).append(": Failed compute info call for operation"));
+                if (CS_SUCCEED != ct_compute_info(cscommand, CS_COMP_COLID, i + 1, &col_id, CS_UNUSED, &(columns[i].namelen)))
+                    throw std::runtime_error(std::string(__FUNCTION__).append(": Failed compute info call for column id"));
+                col_id -= 1;
                 switch (agg_op)
                 {
-                    case CS_OP_SUM:   std::strcpy(columns[i].name, "sum");   break;
-                    case CS_OP_AVG:   std::strcpy(columns[i].name, "avg");   break;
-                    case CS_OP_COUNT: std::strcpy(columns[i].name, "count"); break;
-                    case CS_OP_MIN:   std::strcpy(columns[i].name, "min");   break;
-                    case CS_OP_MAX:   std::strcpy(columns[i].name, "max");   break;
-                    default: std::strcpy(columns[i].name, "unknown"); break;
+                    case CS_OP_SUM:   std::sprintf(columns[i].name, "sum(%s)",   colnames[col_id].c_str()); break;
+                    case CS_OP_AVG:   std::sprintf(columns[i].name, "avg(%s)",   colnames[col_id].c_str()); break;
+                    case CS_OP_COUNT: std::sprintf(columns[i].name, "count(%s)", colnames[col_id].c_str()); break;
+                    case CS_OP_MIN:   std::sprintf(columns[i].name, "min(%s)",   colnames[col_id].c_str()); break;
+                    case CS_OP_MAX:   std::sprintf(columns[i].name, "max(%s)",   colnames[col_id].c_str()); break;
+                    default: std::sprintf(columns[i].name, "unknown(%s)", colnames[col_id].c_str()); break;
                 }
             }
+            else if (::strlen(columns[i].name) == 0)
+                std::sprintf(columns[i].name, "column%d", i + 1);
             name2index[columns[i].name] = i;
             columndata[i].allocate(columns[i].maxlength);
-			if (CS_SUCCEED != ct_bind(cscommand, i + 1, &(columns[i]), columndata[i], &(columndata[i].length), (CS_SMALLINT *)&(columndata[i].indicator)))
-                throw std::runtime_error(std::string(__FUNCTION__).append(": Failed to bind column ").append(std::to_string(i)));
+            if (bind)
+            {
+                if (CS_SUCCEED != ct_bind(cscommand, i + 1, &(columns[i]), columndata[i], &(columndata[i].length), &(columndata[i].indicator)))
+                    throw std::runtime_error(std::string(__FUNCTION__).append(": Failed to bind column ").append(std::to_string(i)));
+            }
         }
     }
 
     void process_param_result()
     {
-
+        // TODO
     }
 
     template<typename T>
-    T get(unsigned int colidx)
+    T get(size_t col_idx)
     {
-        if (is_null(colidx))
+        if (is_null(col_idx))
             throw std::runtime_error(std::string(__FUNCTION__).append(": Can't convert NULL data"));
-        return *(reinterpret_cast<T*>((char*)columndata[colidx]));
+        return *(reinterpret_cast<T*>((char*)columndata[col_idx]));
     }
 
     template<typename T>
-    T getnum(unsigned int colidx)
+    T getnum(size_t col_idx)
     {
-        if (is_null(colidx))
+        if (is_null(col_idx))
             throw std::runtime_error(std::string(__FUNCTION__).append(": Can't convert NULL data"));
-        double num = 0;
-        memset(&destfmt, 0, sizeof(destfmt));
+        auto num = 0.0D;
+        std::memset(&destfmt, 0, sizeof(destfmt));
         destfmt.maxlength = sizeof(double);
         destfmt.datatype  = CS_FLOAT_TYPE;
         destfmt.format    = CS_FMT_UNUSED;
-        destfmt.locale    = NULL;
-        if (CS_SUCCEED != cs_convert(cscontext, &columns[colidx], (CS_VOID*)columndata[colidx], &destfmt, &num, 0))
+        destfmt.locale    = nullptr;
+        if (CS_SUCCEED != cs_convert(cscontext, &columns[col_idx], static_cast<CS_VOID*>(columndata[col_idx]), &destfmt, &num, 0))
             throw std::runtime_error(std::string(__FUNCTION__).append(": cs_convert failed"));
         return num;
     }
 
-    void getdtrec(unsigned int colidx)
+    void getdtrec(size_t col_idx)
     {
-        if (is_null(colidx))
+        if (is_null(col_idx))
             throw std::runtime_error(std::string(__FUNCTION__).append(": Can't convert NULL data"));
-        switch(columns[colidx].datatype)
+        switch (columns[col_idx].datatype)
         {
             case CS_DATE_TYPE:
             case CS_DATETIME_TYPE:
@@ -628,24 +662,26 @@ private:
             default:
                 throw std::runtime_error(std::string(__FUNCTION__).append(": Invalid column data type (supported: date, time, datetime, smalldatetime, bigdatetime)"));
         }
-        memset(&daterec, 0, sizeof(daterec));
-        if (CS_SUCCEED != cs_dt_crack(cscontext, columns[colidx].datatype, (CS_VOID*)columndata[colidx], &daterec))
+        std::memset(&daterec, 0, sizeof(daterec));
+        if (CS_SUCCEED != cs_dt_crack(cscontext, columns[col_idx].datatype, static_cast<CS_VOID*>(columndata[col_idx]), &daterec))
             throw std::runtime_error(std::string(__FUNCTION__).append(": cs_dt_crack failed"));
     }
 
 private:
-    bool do_cancel;
-    CS_CONTEXT* cscontext;
-    CS_COMMAND* cscommand;
+    bool do_cancel = false;
+    size_t row_cnt = 0;
+    size_t affected_rows = 0;
+    bool more_res = false;
+    Context* cscontext = nullptr;
+    CS_COMMAND* cscommand = nullptr;
+    CS_RETCODE retcode;
+    CS_INT result;
     CS_DATAFMT destfmt;
     CS_DATEREC daterec;
     struct tm stm;
     std::map<std::string, int> name2index;
     std::vector<CS_DATAFMT> columns;
     std::vector<column_data> columndata;
-    size_t row_cnt;
-    CS_RETCODE retcode;
-    CS_INT result;
 };
 
 
@@ -669,7 +705,9 @@ public:
     }
 
     connection(connection&& conn)
-        : cscontext(conn.cscontext), csconnection(conn.csconnection), server(std::move(conn.server)), user(std::move(conn.user)), passwd(std::move(conn.passwd))
+        : cscontext(conn.cscontext), csconnection(conn.csconnection),
+          server(std::move(conn.server)), user(std::move(conn.user)),
+          passwd(std::move(conn.passwd))
     {
         conn.cscontext = nullptr;
         conn.csconnection = nullptr;
@@ -695,8 +733,8 @@ public:
     {
         if (true == connected())
             disconnect();
-        if (nullptr != csconnection && CS_SUCCEED == ct_connect(csconnection, (server.empty() ? nullptr : (CS_CHAR*)server.c_str()), server.empty() ? 0 : CS_NULLTERM))
-            return connected();
+        if (nullptr != csconnection && CS_SUCCEED == ct_connect(csconnection, (server.empty() ? nullptr : const_cast<CS_CHAR*>(server.c_str())), server.empty() ? 0 : CS_NULLTERM))
+            return alive();
         return false;
     }
 
@@ -738,48 +776,76 @@ public:
         }
         return false;
     }
-
-    virtual void commit() // TODO
+    
+    virtual void autocommit(bool ac)
     {
-        /*
-        statement stmt = get_statement();
-        stmt.execute("commit tran");
-        // and start new transaction if not in auto-commit mode
-        if (false == auto_commit())
-            stmt.execute("begin tran");
-        */
+        if (nullptr != csconnection)
+        {
+            CS_BOOL val = (ac ? TRUE : FALSE);
+            if (val != is_autocommit)
+            {
+                is_autocommit = val;
+                std::unique_ptr<dbi::istatement> stmt(get_statement(*this));
+                if (val)
+                    stmt->execute("rollback tran");
+                else
+                    stmt->execute("begin tran");
+            }
+        }
     }
 
-    virtual void rollback() // TODO
+    virtual void commit()
     {
-        /*
-        statement stmt = get_statement();
-        stmt.execute("rollback tran");
-        // and start new transaction if not in auto-commit mode
-        if (false == auto_commit())
-            stmt.execute("begin tran");
-        */
+        if (FALSE == is_autocommit)
+        {
+            std::unique_ptr<dbi::istatement> stmt(get_statement(*this));
+            stmt->execute("commit tran begin tran");
+        }
+    }
+
+    virtual void rollback()
+    {
+        if (FALSE == is_autocommit)
+        {
+            std::unique_ptr<dbi::istatement> stmt(get_statement(*this));
+            stmt->execute("rollback tran begin tran");
+        }
     }
 
     virtual dbi::istatement* get_statement(dbi::iconnection& iconn);
 
+
+    template<typename T>
+    connection& userdata(T& user_struct)
+    {
+        T* us = &user_struct;
+        if (nullptr == csconnection || CS_SUCCEED != ct_con_props(csconnection, CS_SET, CS_USERDATA, reinterpret_cast<CS_VOID*>(&us), sizeof(us), nullptr))
+            throw std::runtime_error(std::string(__FUNCTION__).append(": Failed to set connection user data pointer"));
+        return *this;
+    }
+
+    template<typename T>
+    connection& userdata(T*& user_struct)
+    {
+        auto len = 0;
+        if (nullptr == csconnection || CS_SUCCEED != ct_con_props(csconnection, CS_GET, CS_USERDATA, reinterpret_cast<CS_VOID*>(&user_struct), sizeof(user_struct), &len))
+            throw std::runtime_error(std::string(__FUNCTION__).append(": Failed to get connection user data pointer"));
+        return *this;
+    }
+
     connection& props(action actn, CS_INT property, CS_VOID* buffer, CS_INT buflen = CS_UNUSED, CS_INT* outlen = nullptr)
     {
-        auto ret = false;
-        CS_INT act = utils::base_type(actn);
-        if (nullptr != csconnection && nullptr != buffer)
-            ret = (CS_SUCCEED == ct_con_props(csconnection, act, property, buffer, buflen, outlen));
-        if (false == ret)
+        if (nullptr == csconnection || nullptr == buffer || CS_SUCCEED != ct_con_props(csconnection, utils::base_type(actn), property, buffer, buflen, outlen))
             throw std::runtime_error(std::string(__FUNCTION__).append(": Failed to set connection property"));
         return *this;
     }
 
-    CS_CONTEXT* cs_context() const
+    Context* cs_context() const
     {
         return cscontext;
     }
 
-    CS_CONNECTION* cs_connection() const
+    Connection* cs_connection() const
     {
         return csconnection;
     }
@@ -790,18 +856,16 @@ private:
     connection(const driver&) = delete;
     connection& operator=(const connection&) = delete;
 
-    connection(CS_CONTEXT* context, CS_INT dbg_flag, const std::string& protofile, const std::string& server, const std::string& user, const std::string& passwd, const std::string& appname)
-        : cscontext(context), csconnection(nullptr), server(server), user(user), passwd(passwd)
+    connection(Context* context, CS_INT dbg_flag, const std::string& protofile, const std::string& server, const std::string& user, const std::string& passwd)
+        : cscontext(context), server(server), user(user), passwd(passwd)
     {
         if (CS_SUCCEED != ct_con_alloc(cscontext, &csconnection))
             throw std::runtime_error(std::string(__FUNCTION__).append(": Failed to allocate connection struct"));
-        if (CS_SUCCEED != ct_con_props(csconnection, CS_SET, CS_USERNAME, (CS_CHAR*)user.c_str(), CS_NULLTERM, nullptr))
+        if (CS_SUCCEED != ct_con_props(csconnection, CS_SET, CS_USERNAME, const_cast<CS_CHAR*>(user.c_str()), CS_NULLTERM, nullptr))
             throw std::runtime_error(std::string(__FUNCTION__).append(": Failed to set connection user"));
-        if (CS_SUCCEED != ct_con_props(csconnection, CS_SET, CS_PASSWORD, (CS_CHAR*)passwd.c_str(), CS_NULLTERM, nullptr))
+        if (CS_SUCCEED != ct_con_props(csconnection, CS_SET, CS_PASSWORD, const_cast<CS_CHAR*>(passwd.c_str()), CS_NULLTERM, nullptr))
             throw std::runtime_error(std::string(__FUNCTION__).append(": Failed to set connection password"));
-        if (false == appname.empty() && CS_SUCCEED != ct_con_props(csconnection, CS_SET, CS_APPNAME, (CS_CHAR*)appname.c_str(), CS_NULLTERM, nullptr))
-            throw std::runtime_error(std::string(__FUNCTION__).append(": Failed to set connection name"));
-        if (false == protofile.empty() && CS_SUCCEED != ct_debug(nullptr, csconnection, CS_SET_PROTOCOL_FILE, CS_UNUSED, (CS_CHAR*)protofile.c_str(), protofile.length()))
+        if (false == protofile.empty() && CS_SUCCEED != ct_debug(nullptr, csconnection, CS_SET_PROTOCOL_FILE, CS_UNUSED, const_cast<CS_CHAR*>(protofile.c_str()), protofile.length()))
             throw std::runtime_error(std::string(__FUNCTION__).append(": Failed to set debug protocol file name"));
         if (0 != dbg_flag && CS_SUCCEED != ct_debug(cscontext, csconnection, CS_SET_FLAG, dbg_flag, nullptr, CS_UNUSED))
             throw std::runtime_error(std::string(__FUNCTION__).append(": Failed to set debug flags"));
@@ -819,8 +883,9 @@ private:
     }
 
 private:
-    CS_CONTEXT* cscontext;
-    CS_CONNECTION* csconnection;
+    CS_BOOL is_autocommit = CS_TRUE;
+    Context* cscontext = nullptr;
+    Connection* csconnection = nullptr;
     std::string server;
     std::string user;
     std::string passwd;
@@ -840,12 +905,14 @@ class driver : public idriver
 public:
     ~driver()
     {
+        if (cslocale != nullptr)
+            cs_loc_drop(cscontext, cslocale);
         destroy(cscontext);
     }
 
-    dbi::connection get_connection(const std::string& server, const std::string& user, const std::string& passwd, const std::string& appname = "")
+    dbi::connection get_connection(const std::string& server, const std::string& user, const std::string& passwd)
     {
-        return create_connection(new connection(cscontext, dbg_flag, protofile, server, user, passwd, appname));
+        return create_connection(new connection(cscontext, dbg_flag, protofile, server, user, passwd));
     }
 
     driver& debug(debug_flag flag)
@@ -858,7 +925,7 @@ public:
     driver& debug_file(const std::string& fname)
     {
         std::lock_guard<utils::spin_lock> lg(lock);
-        if (nullptr == cscontext || CS_SUCCEED != ct_debug(cscontext, nullptr, CS_SET_DBG_FILE, CS_UNUSED, (CS_CHAR*)fname.c_str(), fname.length()))
+        if (nullptr == cscontext || CS_SUCCEED != ct_debug(cscontext, nullptr, CS_SET_DBG_FILE, CS_UNUSED, const_cast<CS_CHAR*>(fname.c_str()), fname.length()))
             throw std::runtime_error(std::string(__FUNCTION__).append(": Failed to set debug file name"));
         return *this;
     }
@@ -870,24 +937,98 @@ public:
         return *this;
     }
 
-    driver& config(action actn, cfg_type type, CS_INT property, CS_VOID* buffer, CS_INT buflen = CS_UNUSED, CS_INT* outlen = nullptr)
+    driver& app_name(const std::string& appname)
     {
-        auto ret = false;
-        CS_INT act = utils::base_type(actn);
-        if (nullptr != cscontext && nullptr != buffer)
-        {
-            std::lock_guard<utils::spin_lock> lg(lock);
-            if (cfg_type::CS_LIB == type)
-                ret = (CS_SUCCEED == cs_config(cscontext, act, property, buffer, buflen, outlen));
-            else
-                ret = (CS_SUCCEED == ct_config(cscontext, act, property, buffer, buflen, outlen));
-        }
-        if (false == ret)
-            throw std::runtime_error(std::string(__FUNCTION__).append(": Failed to set config parameter"));
+        std::lock_guard<utils::spin_lock> lg(lock);
+        if (nullptr == cscontext || CS_SUCCEED != cs_config(cscontext, CS_SET, CS_APPNAME, const_cast<CS_CHAR*>(appname.c_str()), CS_NULLTERM, nullptr))
+            throw std::runtime_error(std::string(__FUNCTION__).append(": Failed to set application name"));
         return *this;
     }
 
-    driver& cs_msg_callback(CS_RETCODE (*func) (CS_CONTEXT*, CS_CLIENTMSG*))
+    driver& config_file(const std::string& fname)
+    {
+        std::lock_guard<utils::spin_lock> lg(lock);
+        if (nullptr == cscontext ||
+            CS_SUCCEED != cs_config(cscontext, CS_SET, CS_EXTERNAL_CONFIG, reinterpret_cast<CS_VOID*>(&TRUE), CS_UNUSED, nullptr) ||
+            CS_SUCCEED != cs_config(cscontext, CS_SET, CS_CONFIG_FILE, const_cast<CS_CHAR*>(fname.c_str()), CS_NULLTERM, nullptr))
+            throw std::runtime_error(std::string(__FUNCTION__).append(": Failed to set config file"));
+        return *this;
+    }
+
+    driver& max_connections(unsigned int conn_num)
+    {
+        std::lock_guard<utils::spin_lock> lg(lock);
+        if (nullptr == cscontext || CS_SUCCEED != ct_config(cscontext, CS_SET, CS_MAX_CONNECT, reinterpret_cast<CS_VOID*>(&conn_num), CS_UNUSED, nullptr))
+            throw std::runtime_error(std::string(__FUNCTION__).append(": Failed to set maximum connections"));
+        return *this;
+    }
+
+    driver& timeout(unsigned int tout)
+    {
+        std::lock_guard<utils::spin_lock> lg(lock);
+        if (nullptr == cscontext || CS_SUCCEED != ct_config(cscontext, CS_SET, CS_TIMEOUT, reinterpret_cast<CS_VOID*>(&tout), CS_UNUSED, nullptr))
+            throw std::runtime_error(std::string(__FUNCTION__).append(": Failed to set connection timeout"));
+        return *this;
+    }
+
+    driver& keepalive(bool keep_alive)
+    {
+        std::lock_guard<utils::spin_lock> lg(lock);
+        if (nullptr == cscontext || CS_SUCCEED != ct_config(cscontext, CS_SET, CS_CON_KEEPALIVE, reinterpret_cast<CS_VOID*>(&(keep_alive ? TRUE : FALSE)), CS_UNUSED, nullptr))
+            throw std::runtime_error(std::string(__FUNCTION__).append(": Failed to set keepalive property"));
+        return *this;
+    }
+
+    driver& tcp_nodelay(bool nodelay)
+    {
+        std::lock_guard<utils::spin_lock> lg(lock);
+        if (nullptr == cscontext || CS_SUCCEED != ct_config(cscontext, CS_SET, CS_CON_TCP_NODELAY, reinterpret_cast<CS_VOID*>(&(nodelay ? TRUE : FALSE)), CS_UNUSED, nullptr))
+            throw std::runtime_error(std::string(__FUNCTION__).append(": Failed to set keepalive property"));
+        return *this;
+    }
+
+    driver& locale(const std::string& locale_name)
+    {
+        std::lock_guard<utils::spin_lock> lg(lock);
+        if (nullptr == cscontext || (nullptr == cslocale && CS_SUCCEED != cs_loc_alloc(cscontext, &cslocale)))
+            throw std::runtime_error(std::string(__FUNCTION__).append(": Failed to allocate locale structure"));
+        if (!locale_name.empty())
+        {
+            if (CS_SUCCEED != cs_locale(cscontext, CS_SET, cslocale, CS_LC_ALL, const_cast<CS_CHAR*>(locale_name.c_str()), CS_NULLTERM, nullptr) ||
+                CS_SUCCEED != cs_config(cscontext, CS_SET, CS_LOC_PROP, reinterpret_cast<CS_VOID*>(cslocale), CS_UNUSED, nullptr))
+                throw std::runtime_error(std::string(__FUNCTION__).append(": Failed to set locale name"));
+        }
+        return *this;
+    }
+
+    template<typename T>
+    driver& userdata(T& user_struct)
+    {
+        std::lock_guard<utils::spin_lock> lg(lock);
+        T* us = &user_struct;
+        if (nullptr == cscontext || CS_SUCCEED != cs_config(cscontext, CS_SET, CS_USERDATA, reinterpret_cast<CS_VOID*>(&us), sizeof(us), nullptr))
+            throw std::runtime_error(std::string(__FUNCTION__).append(": Failed to set context user data pointer"));
+        return *this;
+    }
+
+    template<typename T>
+    driver& userdata(T*& user_struct)
+    {
+        std::lock_guard<utils::spin_lock> lg(lock);
+        if (nullptr == cscontext || CS_SUCCEED != cs_config(cscontext, CS_GET, CS_USERDATA, reinterpret_cast<CS_VOID*>(&user_struct), sizeof(user_struct), nullptr))
+            throw std::runtime_error(std::string(__FUNCTION__).append(": Failed to get context user data pointer"));
+        return *this;
+    }
+
+    driver& version(long& ver)
+    {
+        std::lock_guard<utils::spin_lock> lg(lock);
+        if (nullptr == cscontext || CS_SUCCEED != cs_config(cscontext,  CS_GET, CS_VERSION, reinterpret_cast<CS_VOID*>(&ver), CS_UNUSED, nullptr))
+            throw std::runtime_error(std::string(__FUNCTION__).append(": Failed to get sybase library version"));
+        return *this;
+    }
+
+    driver& cs_msg_callback(CS_RETCODE (*func) (Context*, ClientMessage*))
     {
         std::lock_guard<utils::spin_lock> lg(lock);
         if (nullptr == cscontext || nullptr == func ||
@@ -896,7 +1037,7 @@ public:
         return *this;
     }
 
-    driver& ct_msg_callback(CS_RETCODE (*func) (CS_CONTEXT*, CS_CONNECTION*, CS_CLIENTMSG*))
+    driver& ct_msg_callback(CS_RETCODE (*func) (Context*, Connection*, ClientMessage*))
     {
         std::lock_guard<utils::spin_lock> lg(lock);
         if (nullptr == cscontext || nullptr == func ||
@@ -905,7 +1046,7 @@ public:
         return *this;
     }
 
-    driver& srv_msg_callback(CS_RETCODE (*func) (CS_CONTEXT*, CS_CONNECTION*, CS_SERVERMSG*))
+    driver& srv_msg_callback(CS_RETCODE (*func) (Context*, Connection*, ServerMessage*))
     {
         std::lock_guard<utils::spin_lock> lg(lock);
         if (nullptr == cscontext || nullptr == func ||
@@ -914,14 +1055,30 @@ public:
         return *this;
     }
 
-    CS_CONTEXT* cs_context() const
+    driver& config(action actn, cfg_type type, CS_INT property, CS_VOID* buffer, CS_INT buflen = CS_UNUSED, CS_INT* outlen = nullptr)
+    {
+        auto ret = false;
+        if (nullptr != cscontext && nullptr != buffer)
+        {
+            std::lock_guard<utils::spin_lock> lg(lock);
+            if (cfg_type::CS_LIB == type)
+                ret = (CS_SUCCEED == cs_config(cscontext, utils::base_type(actn), property, buffer, buflen, outlen));
+            else
+                ret = (CS_SUCCEED == ct_config(cscontext, utils::base_type(actn), property, buffer, buflen, outlen));
+        }
+        if (false == ret)
+            throw std::runtime_error(std::string(__FUNCTION__).append(": Failed to set/get config parameter"));
+        return *this;
+    }
+
+    Context* cs_context() const
     {
         return cscontext;
     }
 
     static const char* decode_severity(CS_INT v)
     {
-        if (v < 0 || severity.size() - 1 < (unsigned int)v)
+        if (v < 0 || severity.size() - 1 < (size_t)v)
             return "UNKNOWN";
         return severity[v];
     }
@@ -933,10 +1090,10 @@ protected:
     driver& operator=(driver&&) = delete;
     driver** operator&() = delete;
 
-    driver() : cscontext(nullptr), dbg_flag(0)
+    driver()
     {
         allocate(cscontext, version());
-        cs_msg_callback([](CS_CONTEXT* context, CS_CLIENTMSG* msg)
+        cs_msg_callback([](Context* context, ClientMessage* msg)
         {
             std::cout << __FUNCTION__ << ": CS Library message: Severity - " << CS_SEVERITY(msg->msgnumber) << " (" << decode_severity(CS_SEVERITY(msg->msgnumber)) <<
                     "), layer - " << CS_LAYER(msg->msgnumber) << ", origin - " << CS_ORIGIN(msg->msgnumber) <<
@@ -945,7 +1102,7 @@ protected:
                 std::cout << __FUNCTION__ << ": Operating System Message: " << msg->osstring << std::endl;
             return (CS_SUCCEED);
         });
-        ct_msg_callback([](CS_CONTEXT* context, CS_CONNECTION* connection, CS_CLIENTMSG* msg)
+        ct_msg_callback([](Context* context, Connection* connection, ClientMessage* msg)
         {
             std::cout << __FUNCTION__ << ": Open Client Message: Severity - " << CS_SEVERITY(msg->msgnumber) << " (" << decode_severity(CS_SEVERITY(msg->msgnumber)) <<
                     "), layer - " << CS_LAYER(msg->msgnumber) << ", origin - " << CS_ORIGIN(msg->msgnumber) <<
@@ -954,7 +1111,7 @@ protected:
                 std::cout << __FUNCTION__ << ": Operating System Message: " << msg->osstring << std::endl;
             return CS_SUCCEED;
         });
-        srv_msg_callback([](CS_CONTEXT* context, CS_CONNECTION* connection, CS_SERVERMSG* msg)
+        srv_msg_callback([](Context* context, Connection* connection, ServerMessage* msg)
         {
             std::cout << __FUNCTION__ << ": Server message: " << (msg->svrnlen > 0 ? std::string("Server '").append(msg->svrname).append("': ") : "")
                     << (msg->proclen > 0 ? std::string("Procedure '").append(msg->proc).append("': ") : "") << "Severity - " << msg->severity
@@ -963,7 +1120,7 @@ protected:
         });
     }
 
-    void allocate(CS_CONTEXT*& cs_context, CS_INT version)
+    void allocate(Context*& cs_context, CS_INT version)
     {
         if (CS_SUCCEED != cs_ctx_alloc(version, &cs_context))
             throw std::runtime_error(std::string(__FUNCTION__).append(": Failed to allocate context struct"));
@@ -974,7 +1131,7 @@ protected:
         }
     }
 
-    void destroy(CS_CONTEXT*& cs_context)
+    void destroy(Context*& cs_context)
     {
         if (CS_SUCCEED != ct_exit(cs_context, CS_UNUSED))
             ct_exit(cs_context, CS_FORCE_EXIT);
@@ -984,8 +1141,8 @@ protected:
 
     CS_INT version()
     {
-        CS_INT version = CS_VERSION_100;
-        CS_CONTEXT* cs_context = nullptr;
+        auto version = CS_VERSION_100;
+        Context* cs_context = nullptr;
         try
         {
             allocate(cs_context, CS_VERSION_100);
@@ -1047,8 +1204,9 @@ private:
         "CS_SV_FATAL"
     }};
 
-    CS_CONTEXT* cscontext;
-    CS_INT dbg_flag;
+    CS_LOCALE* cslocale = nullptr;
+    Context* cscontext = nullptr;
+    CS_INT dbg_flag = 0;
     std::string protofile;
     utils::spin_lock lock;
 }; // driver
@@ -1080,32 +1238,196 @@ public:
         ct_cmd_drop(cscommand);
     }
 
-    virtual dbi::iresult_set* execute()
+    virtual void prepare(const std::string& cmd)
     {
         rs.cancel_all();
-        if (command.empty())
-            throw std::runtime_error(std::string(__FUNCTION__).append(": SQL command is not set"));
+        command = cmd;
+        static std::atomic_int cnt(1);
+        std::string id = "p";
+        id.append(std::to_string(cnt++)).append(std::to_string(std::hash<std::string>()(command)));
+        auto csid = const_cast<CS_CHAR*>(id.c_str());
         if (false == conn.alive())
             throw std::runtime_error(std::string(__FUNCTION__).append(": Database connection is dead"));
-        if (CS_SUCCEED != ct_command(cscommand, CS_LANG_CMD, (CS_CHAR*)command.c_str(), CS_NULLTERM, CS_UNUSED))
-            throw std::runtime_error(std::string(__FUNCTION__).append(": Failed to set command"));
+        if (CS_SUCCEED != ct_dynamic(cscommand, CS_PREPARE, csid, CS_NULLTERM, const_cast<CS_CHAR*>(command.c_str()), CS_NULLTERM))
+            throw std::runtime_error(std::string(__FUNCTION__).append(": Failed to prepare command"));
+        execute();
+        if (CS_SUCCEED != ct_dynamic(cscommand, CS_DESCRIBE_INPUT, csid, CS_NULLTERM, nullptr, CS_UNUSED))
+            throw std::runtime_error(std::string(__FUNCTION__).append(": Failed to get input params decription"));
+        execute();
+        if (CS_SUCCEED != ct_dynamic(cscommand, CS_EXECUTE, csid, CS_NULLTERM, nullptr, CS_UNUSED))
+            throw std::runtime_error(std::string(__FUNCTION__).append(": Failed to set command for execution"));
+        prep_datafmt.resize(rs.columns.size());
+        prep_data.resize(rs.columns.size());
+        for (auto i = 0U; i < rs.columns.size(); ++i)
+        {
+            prep_datafmt[i] = rs.columns[i];
+            prep_data[i].allocate(rs.columns[i].maxlength);
+            if (CS_SUCCEED != ct_setparam(cscommand, &(prep_datafmt[i]), prep_data[i], &(prep_data[i].length), &(prep_data[i].indicator)))
+                throw std::runtime_error(std::string(__FUNCTION__).append(": Failed to set param, index ").append(std::to_string(i)));
+        }
+    }
+    
+    virtual void set_null(size_t col_idx)
+    {
+        if (col_idx >= prep_data.size())
+            throw std::runtime_error(std::string(__FUNCTION__).append(": Invalid index"));
+        prep_data[col_idx].length = 0;
+        prep_data[col_idx].indicator = -1;
+    }
+    
+    virtual void set_short(size_t col_idx, int16_t val)
+    {
+        set(col_idx, std::to_string(val));
+    }
+    
+    virtual void set_ushort(size_t col_idx, uint16_t val)
+    {
+        set(col_idx, std::to_string(val));
+    }
+    
+    virtual void set_int(size_t col_idx, int32_t val)
+    {
+        set(col_idx, std::to_string(val));
+    }
+    
+    virtual void set_uint(size_t col_idx, uint32_t val)
+    {
+        set(col_idx, std::to_string(val));
+    }
+    
+    virtual void set_long(size_t col_idx, int64_t val)
+    {
+        set(col_idx, std::to_string(val));
+    }
+    
+    virtual void set_ulong(size_t col_idx, uint64_t val)
+    {
+        set(col_idx, std::to_string(val));
+    }
+    
+    virtual void set_float(size_t col_idx, float val)
+    {
+        set(col_idx, std::to_string(val));
+    }
+    
+    virtual void set_double(size_t col_idx, double val)
+    {
+        set(col_idx, std::to_string(val));
+    }
+    
+    virtual void set_ldouble(size_t col_idx, long double val)
+    {
+        set(col_idx, std::to_string(val));
+    }
+    
+    virtual void set_bool(size_t col_idx, bool val)
+    {
+        set(col_idx, std::to_string(val));
+    }
+    
+    virtual void set_char(size_t col_idx, char val)
+    {
+        if (col_idx >= prep_data.size())
+            throw std::runtime_error(std::string(__FUNCTION__).append(": Invalid index"));
+        prep_data[col_idx].indicator = 0;
+        prep_data[col_idx].length = 1;
+        prep_data[col_idx][0] = val;
+    }
+    
+    virtual void set_string(size_t col_idx, const std::string& val)
+    {
+        if (col_idx >= prep_data.size())
+            throw std::runtime_error(std::string(__FUNCTION__).append(": Invalid index"));
+        prep_data[col_idx].length = val.length();
+        if (prep_data[col_idx].length > prep_datafmt[col_idx].maxlength)
+            throw std::runtime_error(std::string(__FUNCTION__).append(": Data length is greater than maximum field size"));
+        prep_data[col_idx].indicator = 0;
+        std::memcpy(prep_data[col_idx], val.c_str(), val.length());
+    }
+    
+    virtual void set_date(size_t col_idx, int val)
+    {
+        set(col_idx, std::to_string(val));
+    }
+    
+    virtual void set_time(size_t col_idx, double val)
+    {
+        int t = static_cast<int>(val);
+        int hr =  t / 10000;
+        int min = (t % 10000) / 100;
+        int sec = t % 100;
+        int ms = (val - t) * 1000;
+        std::vector<char> dt(23);
+        std::sprintf(dt.data(), "1900-01-01 %02d:%02d:%02d.%03d", hr, min, sec, ms);
+        set(col_idx, dt.data());
+    }
+    
+    virtual void set_datetime(size_t col_idx, time_t val)
+    {
+#if defined(_WIN32) || defined(_WIN64)
+        ::localtime_s(&stm, &val);
+#else
+        ::localtime_r(&val, &stm);
+#endif
+        stm.tm_year += 1900;
+        std::vector<char> dt(23);
+        std::sprintf(dt.data(), "%04d-%02d-%02d %02d:%02d:%02d.000", stm.tm_year, stm.tm_mon, stm.tm_mday, stm.tm_hour, stm.tm_min, stm.tm_sec);
+        set(col_idx, dt.data());
+    }
+    
+    virtual void set_unichar(size_t col_idx, char16_t val)
+    {
+        if (col_idx >= prep_data.size())
+            throw std::runtime_error(std::string(__FUNCTION__).append(": Invalid index"));
+        prep_data[col_idx].length = sizeof(char16_t);
+        if (prep_data[col_idx].length > prep_datafmt[col_idx].maxlength)
+            throw std::runtime_error(std::string(__FUNCTION__).append(": Data length is greater than maximum field size"));
+        prep_data[col_idx].indicator = 0;
+        std::memcpy(prep_data[col_idx], &val, prep_data[col_idx].length);
+    }
+    
+    virtual void set_unistring(size_t col_idx, const std::u16string& val)
+    {
+        if (col_idx >= prep_data.size())
+            throw std::runtime_error(std::string(__FUNCTION__).append(": Invalid index"));
+        prep_data[col_idx].length = sizeof(char16_t) * val.length();
+        if (prep_data[col_idx].length > prep_datafmt[col_idx].maxlength)
+            throw std::runtime_error(std::string(__FUNCTION__).append(": Data length is greater than maximum field size"));
+        prep_data[col_idx].indicator = 0;
+        std::memcpy(prep_data[col_idx], &val[0], prep_data[col_idx].length);
+    }
+    
+    virtual void set_image(size_t col_idx, const std::vector<uint8_t>& val)
+    {
+        if (col_idx >= prep_data.size())
+            throw std::runtime_error(std::string(__FUNCTION__).append(": Invalid index"));
+        prep_data[col_idx].length = val.size();
+        if (prep_data[col_idx].length > prep_datafmt[col_idx].maxlength)
+            throw std::runtime_error(std::string(__FUNCTION__).append(": Data length is greater than maximum field size"));
+        prep_data[col_idx].indicator = 0;
+        std::memcpy(prep_data[col_idx], &val[0], prep_data[col_idx].length);
+    }
+
+    virtual dbi::iresult_set* execute()
+    {
+        if (false == conn.alive())
+            throw std::runtime_error(std::string(__FUNCTION__).append(": Database connection is dead"));
         if (CS_SUCCEED != ct_send(cscommand))
-            throw std::runtime_error(std::string(__FUNCTION__).append(": Failed to execute command: ").append(command));
+            throw std::runtime_error(std::string(__FUNCTION__).append(": Failed to send command: ").append(command));
         rs.cscontext = conn.cs_context();
         rs.cscommand = cscommand;
-        rs.more_results();
+        rs.next_result();
         return &rs;
     }
 
     virtual dbi::iresult_set* execute(const std::string& cmd)
     {
-        return execute(cmd, cmd_type::LANG_CMD);
-    }
-
-    dbi::iresult_set* execute(const std::string& cmd, cmd_type type)
-    {
+        if (cmd.empty())
+            throw std::runtime_error(std::string(__FUNCTION__).append(": SQL command is not set"));
         command = cmd;
-        ctype = utils::base_type(type);
+        rs.cancel_all();
+        if (CS_SUCCEED != ct_command(cscommand, CS_LANG_CMD, const_cast<CS_CHAR*>(command.c_str()), CS_NULLTERM, CS_UNUSED))
+            throw std::runtime_error(std::string(__FUNCTION__).append(": Failed to set command"));
         return execute();
     }
 
@@ -1121,19 +1443,37 @@ public:
 
 private:
     friend class connection;
-
-    statement(connection& conn) : ctype(CS_LANG_CMD), conn(conn)
+    statement() = delete;
+    statement(connection& conn) : conn(conn)
     {
+        std::memset(&srcfmt, 0, sizeof(srcfmt));
+        srcfmt.datatype = CS_CHAR_TYPE;
+        srcfmt.format = CS_FMT_NULLTERM;
+        srcfmt.locale = nullptr;
         if (CS_SUCCEED != ct_cmd_alloc(conn.cs_connection(), &cscommand))
             throw std::runtime_error(std::string(__FUNCTION__).append(": Failed to allocate command struct"));
     }
 
+    void set(size_t col_idx, const std::string& val)
+    {
+        if (col_idx >= prep_data.size())
+            throw std::runtime_error(std::string(__FUNCTION__).append(": Invalid index"));
+        srcfmt.maxlength = val.length();
+        if (CS_SUCCEED != cs_convert(conn.cs_context(), &srcfmt, const_cast<char*>(val.c_str()), &prep_datafmt[col_idx], prep_data[col_idx], 0))
+            throw std::runtime_error(std::string(__FUNCTION__).append(": cs_convert failed"));
+        prep_data[col_idx].length = prep_datafmt[col_idx].maxlength;
+        prep_data[col_idx].indicator = 0;
+    }
+
 private:
-    CS_INT ctype;
-    CS_COMMAND* cscommand;
+    CS_COMMAND* cscommand = nullptr;
     connection& conn;
     std::string command;
     result_set rs;
+    CS_DATAFMT srcfmt;
+    struct tm stm;
+    std::vector<CS_DATAFMT> prep_datafmt;
+    std::vector<result_set::column_data> prep_data;
 };
 
 
@@ -1150,5 +1490,5 @@ dbi::istatement* connection::get_statement(dbi::iconnection& iconn)
 
 } } } } // namespace vgi::dbconn::dbd::sybase
 
-#endif	// SYBASE_DRIVER_HPP
+#endif // SYBASE_DRIVER_HPP
 

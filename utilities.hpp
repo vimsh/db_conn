@@ -17,7 +17,7 @@
  */
 
 #ifndef UTILITIES_HPP
-#define	UTILITIES_HPP
+#define UTILITIES_HPP
 
 #include <functional>
 #include <iostream>
@@ -58,5 +58,5 @@ namespace vgi { namespace dbconn { namespace utils {
 
 } } } // namepsace vgi::dbconn::utils
 
-#endif	// UTILITIES_HPP
+#endif // UTILITIES_HPP
 

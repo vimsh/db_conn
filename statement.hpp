@@ -17,7 +17,7 @@
  */
 
 #ifndef STATEMENT_HPP
-#define	STATEMENT_HPP
+#define STATEMENT_HPP
 
 #include "result_set.hpp"
 
@@ -32,10 +32,30 @@ class connection;
 struct istatement
 {
     virtual ~istatement() { };
+    virtual void prepare(const std::string& sql) = 0;
     virtual iresult_set* execute(const std::string& sql) = 0;
     virtual iresult_set* execute() = 0;
     virtual bool cancel() = 0;
     virtual bool cancel_all() = 0;
+    virtual void set_null(size_t col_idx) = 0;
+    virtual void set_short(size_t col_idx, int16_t val) = 0;
+    virtual void set_ushort(size_t col_idx, uint16_t val) = 0;
+    virtual void set_int(size_t col_idx, int32_t val) = 0;
+    virtual void set_uint(size_t col_idx, uint32_t val) = 0;
+    virtual void set_long(size_t col_idx, int64_t val) = 0;
+    virtual void set_ulong(size_t col_idx, uint64_t val) = 0;
+    virtual void set_float(size_t col_idx, float val) = 0;
+    virtual void set_double(size_t col_idx, double val) = 0;
+    virtual void set_ldouble(size_t col_idx, long double val) = 0;
+    virtual void set_bool(size_t col_idx, bool val) = 0;
+    virtual void set_char(size_t col_idx, char val) = 0;
+    virtual void set_string(size_t col_idx, const std::string& val) = 0;
+    virtual void set_date(size_t col_idx, int val) = 0;
+    virtual void set_time(size_t col_idx, double val) = 0;
+    virtual void set_datetime(size_t col_idx, time_t val) = 0;
+    virtual void set_unichar(size_t col_idx, char16_t val) = 0;
+    virtual void set_unistring(size_t col_idx, const std::u16string& val) = 0;
+    virtual void set_image(size_t col_idx, const std::vector<uint8_t>& val) = 0;
 };
 
 
@@ -52,10 +72,19 @@ struct istatement
 class statement
 {
 public:
+    /**
+     * Move constructor
+     * @param stmt
+     */
     statement(statement&& stmt) : stmt_impl(std::move(stmt.stmt_impl))
     {
     }
 
+    /**
+     * Assignment operator
+     * @param stmt
+     * @return 
+     */
     statement& operator=(statement&& stmt)
     {
         if (this != &stmt)
@@ -63,21 +92,139 @@ public:
         return *this;
     }
 
+    /**
+     * Function prepares dynamic SQL statement
+     * @param sql statement to be executed
+     */
+    void prepare(const std::string& sql)
+    {
+        stmt_impl->prepare(sql);
+    }
+
+    /**
+     * Function runs last executed SQL statement
+     * @return result set object
+     */
     result_set execute()
     {
         return result_set(stmt_impl->execute());
     }
 
+    /**
+     * Function runs SQL statement
+     * @param sql statement to be executed
+     * @return result set object
+     */
     result_set execute(const std::string& sql)
     {
         return result_set(stmt_impl->execute(sql));
     }
 
+    /**
+     * Function cancels currently running SQL statement
+     * @return true if canceled, false otherwise
+     */
     bool cancel()
     {
         return stmt_impl->cancel();
     }
-
+    
+    virtual void set_null(size_t col_idx)
+    {
+        stmt_impl->set_null(col_idx);
+    }
+    
+    virtual void set_short(size_t col_idx, int16_t val)
+    {
+        stmt_impl->set_short(col_idx, val);
+    }
+    
+    virtual void set_ushort(size_t col_idx, uint16_t val)
+    {
+        stmt_impl->set_ushort(col_idx, val);
+    }
+    
+    virtual void set_int(size_t col_idx, int32_t val)
+    {
+        stmt_impl->set_int(col_idx, val);
+    }
+    
+    virtual void set_uint(size_t col_idx, uint32_t val)
+    {
+        stmt_impl->set_uint(col_idx, val);
+    }
+    
+    virtual void set_long(size_t col_idx, int64_t val)
+    {
+        stmt_impl->set_long(col_idx, val);
+    }
+    
+    virtual void set_ulong(size_t col_idx, uint64_t val)
+    {
+        stmt_impl->set_ulong(col_idx, val);
+    }
+    
+    virtual void set_float(size_t col_idx, float val)
+    {
+        stmt_impl->set_float(col_idx, val);
+    }
+    
+    virtual void set_double(size_t col_idx, double val)
+    {
+        stmt_impl->set_double(col_idx, val);
+    }
+    
+    virtual void set_ldouble(size_t col_idx, long double val)
+    {
+        stmt_impl->set_ldouble(col_idx, val);
+    }
+    
+    virtual void set_bool(size_t col_idx, bool val)
+    {
+        stmt_impl->set_bool(col_idx, val);
+    }
+    
+    virtual void set_char(size_t col_idx, char val)
+    {
+        stmt_impl->set_char(col_idx, val);
+    }
+    
+    virtual void set_string(size_t col_idx, const std::string& val)
+    {
+        stmt_impl->set_string(col_idx, val);
+    }
+    
+    virtual void set_date(size_t col_idx, int val)
+    {
+        stmt_impl->set_date(col_idx, val);
+    }
+    
+    virtual void set_time(size_t col_idx, double val)
+    {
+        stmt_impl->set_time(col_idx, val);
+    }
+    
+    virtual void set_datetime(size_t col_idx, time_t val)
+    {
+        stmt_impl->set_datetime(col_idx, val);
+    }
+    
+    virtual void set_unichar(size_t col_idx, char16_t val)
+    {
+        stmt_impl->set_unichar(col_idx, val);
+    }
+    
+    virtual void set_unistring(size_t col_idx, const std::u16string& val)
+    {
+        stmt_impl->set_unistring(col_idx, val);
+    }
+    
+    virtual void set_image(size_t col_idx, const std::vector<uint8_t>& val)
+    {
+        stmt_impl->set_image(col_idx, val);
+    }
+    // TODO: add xml, binary, money, lob
+    
 private:
     friend class connection;
     statement(istatement* stmt) : stmt_impl(stmt) { }
@@ -91,5 +238,5 @@ private:
 
 } } } // namespace vgi::dbconn::dbi
 
-#endif	// STATEMENT_HPP
+#endif // STATEMENT_HPP
 

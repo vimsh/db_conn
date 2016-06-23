@@ -17,7 +17,7 @@
  */
 
 #ifndef CONNECTION_HPP
-#define	CONNECTION_HPP
+#define CONNECTION_HPP
 
 #include <memory>
 #include "utilities.hpp"
@@ -44,6 +44,7 @@ struct iconnection
     virtual void disconnect() = 0;
     virtual void commit() = 0;
     virtual void rollback() = 0;
+    virtual void autocommit(bool ac) = 0;
     virtual bool connected() const = 0;
     virtual bool alive() const = 0;
     virtual istatement* get_statement(iconnection&) = 0;
@@ -63,10 +64,19 @@ struct iconnection
 class connection {
 
 public:
+    /**
+     * Move constructor
+     * @param conn
+     */
     connection(connection&& conn) : conn_impl(std::move(conn.conn_impl))
     {
     }
 
+    /**
+     * Move assign operator
+     * @param conn
+     * @return 
+     */
     connection& operator=(connection&& conn)
     {
         if (this != &conn)
@@ -74,51 +84,94 @@ public:
         return *this;
     }
 
+    /**
+     * Destructor
+     */
     ~connection()
     {
         disconnect();
     }
 
+    /**
+     * Function opens connection to the database
+     * @return true on success, false otherwise
+     */
     bool connect()
     {
         return conn_impl->connect();
     }
 
+    /**
+     * Function closes connection to the database
+     */
     void disconnect()
     {
         conn_impl->disconnect();
     }
 
+    /**
+     * Function sets autocommit option, default is 'true'
+     * @param ac - true to set autocommit ON, false - OFF
+     */
+    void autocommit(bool ac)
+    {
+        return conn_impl->autocommit(ac);
+    }
+
+    /**
+     * Function commits changes to the database
+     */
     void commit()
     {
         conn_impl->commit();
     }
 
+    /**
+     * Function rolls back uncommitted changes
+     */
     void rollback()
     {
         conn_impl->rollback();
     }
 
+    /**
+     * Function checks if connection to the database is opened
+     * @return true on success, false otherwise
+     */
     bool connected() const
     {
         return conn_impl->connected();
     }
 
+    /**
+     * Function checks if connection to the database is alive
+     * @return true on success, false otherwise
+     */
     bool alive() const
     {
         return conn_impl->alive();
     }
 
+    /**
+     * Function returns statement object for the connection
+     * @return 
+     */
     statement get_statement()
     {
         return statement(conn_impl->get_statement(*(conn_impl.get())));
     }
 
+    /**
+     * Conversion operator to the concrete database connection implementation
+     * @return 
+     */
     template <typename T>
-    T& get_native_connection()
+    explicit operator T&() const
     {
         return dynamic_cast<T&>(*conn_impl);
     }
+    
+    
 
 private:
     template <typename T> friend class dbd::driver;
@@ -135,5 +188,5 @@ private:
 
 } } } // namespace vgi::dbconn::dbi
 
-#endif	// CONNECTION_HPP
+#endif // CONNECTION_HPP
 

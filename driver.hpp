@@ -17,7 +17,7 @@
  */
 
 #ifndef DRIVER_HPP
-#define	DRIVER_HPP
+#define DRIVER_HPP
 
 #include <memory>
 #include <functional>
@@ -68,5 +68,5 @@ private:
 
 }}} // namespace vgi::dbconn::dbd
 
-#endif	// DRIVER_HPP
+#endif // DRIVER_HPP
 
