@@ -8,7 +8,7 @@ INCLUDES = -I/opt/sybase15/OCS-15_0/include
 
 # compiler path and flags
 CC       = /opt/gcc/bin/g++
-CFLAGS   = -std=c++11 -Wall -Wno-unused -Wno-sequence-point -Wno-parentheses -c -ggdb3 -m64 -pthread -DSYB_LP64 -D_REENTRANT
+CFLAGS   = -std=c++1y -Wall -Wno-unused -Wno-sequence-point -Wno-parentheses -c -ggdb3 -m64 -pthread -DSYB_LP64 -D_REENTRANT
 
 # sybase libraries to include in the build
 CTLIB    = -lsybct64   # client library

@@ -33,10 +33,11 @@ struct istatement
 {
     virtual ~istatement() { };
     virtual void prepare(const std::string& sql) = 0;
-    virtual iresult_set* execute(const std::string& sql) = 0;
+    virtual void call(const std::string& sql) = 0;
+    virtual iresult_set* execute(const std::string& sql, bool cursor = false, bool scrollable = false) = 0;
     virtual iresult_set* execute() = 0;
     virtual bool cancel() = 0;
-    virtual bool cancel_all() = 0;
+    virtual int proc_retval() = 0;
     virtual void set_null(size_t col_idx) = 0;
     virtual void set_short(size_t col_idx, int16_t val) = 0;
     virtual void set_ushort(size_t col_idx, uint16_t val) = 0;
@@ -46,7 +47,6 @@ struct istatement
     virtual void set_ulong(size_t col_idx, uint64_t val) = 0;
     virtual void set_float(size_t col_idx, float val) = 0;
     virtual void set_double(size_t col_idx, double val) = 0;
-    virtual void set_ldouble(size_t col_idx, long double val) = 0;
     virtual void set_bool(size_t col_idx, bool val) = 0;
     virtual void set_char(size_t col_idx, char val) = 0;
     virtual void set_string(size_t col_idx, const std::string& val) = 0;
@@ -55,7 +55,7 @@ struct istatement
     virtual void set_datetime(size_t col_idx, time_t val) = 0;
     virtual void set_unichar(size_t col_idx, char16_t val) = 0;
     virtual void set_unistring(size_t col_idx, const std::u16string& val) = 0;
-    virtual void set_image(size_t col_idx, const std::vector<uint8_t>& val) = 0;
+    virtual void set_binary(size_t col_idx, const std::vector<uint8_t>& val) = 0;
 };
 
 
@@ -102,6 +102,15 @@ public:
     }
 
     /**
+     * Function prepares SQL stored procedure
+     * @param sql stored procedure to be executed
+     */
+    void call(const std::string& proc)
+    {
+        stmt_impl->call(proc);
+    }
+
+    /**
      * Function runs last executed SQL statement
      * @return result set object
      */
@@ -113,20 +122,33 @@ public:
     /**
      * Function runs SQL statement
      * @param sql statement to be executed
+     * @param cursor = true to use cursor with select statements
+     * @param scrollable = true to use scrollable cursor
      * @return result set object
      */
-    result_set execute(const std::string& sql)
+    result_set execute(const std::string& sql, bool cursor = false, bool scrollable = false)
     {
-        return result_set(stmt_impl->execute(sql));
+        return result_set(stmt_impl->execute(sql, cursor, scrollable));
     }
 
     /**
-     * Function cancels currently running SQL statement
+     * Function cancels currently running SQL statements
      * @return true if canceled, false otherwise
      */
     bool cancel()
     {
         return stmt_impl->cancel();
+    }
+    
+    /**
+     * Function returns stored procedure return value.
+     * This function must be called after all result sets from stored proc select
+     * statements had been processed
+     * @return int
+     */
+    int proc_retval()
+    {
+        return stmt_impl->proc_retval();
     }
     
     virtual void set_null(size_t col_idx)
@@ -174,11 +196,6 @@ public:
         stmt_impl->set_double(col_idx, val);
     }
     
-    virtual void set_ldouble(size_t col_idx, long double val)
-    {
-        stmt_impl->set_ldouble(col_idx, val);
-    }
-    
     virtual void set_bool(size_t col_idx, bool val)
     {
         stmt_impl->set_bool(col_idx, val);
@@ -219,11 +236,10 @@ public:
         stmt_impl->set_unistring(col_idx, val);
     }
     
-    virtual void set_image(size_t col_idx, const std::vector<uint8_t>& val)
+    virtual void set_binary(size_t col_idx, const std::vector<uint8_t>& val)
     {
-        stmt_impl->set_image(col_idx, val);
+        stmt_impl->set_binary(col_idx, val);
     }
-    // TODO: add xml, binary, money, lob
     
 private:
     friend class connection;

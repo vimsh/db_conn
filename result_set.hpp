@@ -19,6 +19,8 @@
 #ifndef RESULT_SET_HPP
 #define RESULT_SET_HPP
 
+#include "utilities.hpp"
+
 namespace vgi { namespace dbconn { namespace dbi {
 
 class statement;
@@ -37,6 +39,9 @@ struct iresult_set
     virtual size_t rows_affected() const = 0;
     virtual size_t column_count() const = 0;
     virtual bool next() = 0;
+    virtual bool prev() = 0;
+    virtual bool first() = 0;
+    virtual bool last() = 0;
     virtual std::string column_name(size_t col_idx) = 0;
     virtual int column_index(const std::string& col_name) = 0;
     virtual bool is_null(size_t col_idx) = 0;
@@ -48,7 +53,6 @@ struct iresult_set
     virtual uint64_t get_ulong(size_t col_idx) = 0;
     virtual float get_float(size_t col_idx) = 0;
     virtual double get_double(size_t col_idx) = 0;
-    virtual long double get_ldouble(size_t col_idx) = 0;
     virtual bool get_bool(size_t col_idx) = 0;
     virtual char get_char(size_t col_idx) = 0;
     virtual std::string get_string(size_t col_idx) = 0;
@@ -57,8 +61,7 @@ struct iresult_set
     virtual time_t get_datetime(size_t col_idx) = 0;
     virtual char16_t get_unichar(size_t col_idx) = 0;
     virtual std::u16string get_unistring(size_t col_idx) = 0;
-    virtual std::vector<uint8_t> get_image(size_t col_idx) = 0;
-    // TODO: add xml, binary, money, lob
+    virtual std::vector<uint8_t> get_binary(size_t col_idx) = 0;
 };
 
 
@@ -165,8 +168,8 @@ public:
 
     /**
      * Function returns column name by column index or throws an exception if
-     * index is invalid 
-        * @param col_idx
+     * index is invalid
+     * @param col_idx
      * @return column name string or exception is thrown if index is invalid
      */
     const std::string column_name(size_t col_idx)
@@ -192,6 +195,36 @@ public:
     bool next()
     {
         return rs_impl->next();
+    }
+
+    /**
+     * Function moves iterator to the previous row of the current result data set
+     * This function can only be used with scrollable cursor.
+     * @return true on success, or false if there is no more rows
+     */
+    bool prev()
+    {
+        return rs_impl->prev();
+    }
+
+    /**
+     * Function moves iterator to the first row of the current result data set
+     * This function can only be used with scrollable cursor.
+     * @return true on success, or false if there is no more rows
+     */
+    bool first()
+    {
+        return rs_impl->first();
+    }
+
+    /**
+     * Function moves iterator to the last row of the current result data set
+     * This function can only be used with scrollable cursor.
+     * @return true on success, or false if there is no more rows
+     */
+    bool last()
+    {
+        return rs_impl->last();
     }
 
     /**
@@ -235,8 +268,6 @@ public:
     float get_type_by_name(float);
     double get_type_by_index(double);
     double get_type_by_name(double);
-    long double get_type_by_index(ldouble);
-    long double get_type_by_name(ldouble);
     bool get_type_by_index(bool);
     bool get_type_by_name(bool);
     char get_type_by_index(char);
@@ -253,8 +284,8 @@ public:
     char16_t get_type_by_name(unichar);
     std::u16string get_type_by_index(unistring);
     std::u16string get_type_by_name(unistring);
-    std::vector<uint8_t> get_type_by_index(image);
-    std::vector<uint8_t> get_type_by_name(image);
+    std::vector<uint8_t> get_type_by_index(binary);
+    std::vector<uint8_t> get_type_by_name(binary);
 
 
 private:

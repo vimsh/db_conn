@@ -20,8 +20,6 @@
 #define CONNECTION_HPP
 
 #include <memory>
-#include "utilities.hpp"
-#include "driver.hpp"
 #include "statement.hpp"
 
 // forward declaration
@@ -110,8 +108,8 @@ public:
     }
 
     /**
-     * Function sets autocommit option, default is 'true'
-     * @param ac - true to set autocommit ON, false - OFF
+     * Function sets auto-commit option, default is 'true'
+     * @param ac - true to set auto-commit ON, false - OFF
      */
     void autocommit(bool ac)
     {

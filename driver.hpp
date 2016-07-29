@@ -43,7 +43,7 @@ template <typename T>
 class driver : public T
 {
 public:
-    // c++11 guaranties no threading issues
+    // c++1y guarantees no threading issues
     static T& load()
     {
         static driver<T> d;
