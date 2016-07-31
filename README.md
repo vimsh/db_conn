@@ -67,16 +67,16 @@ int main(int argc, char** argv)
             stmt.set_int(0, 2);
             stmt.set_string(1, "test2");
             stmt.execute();
-			
-			// cursor
+            
+            // cursor
             rs = stmt.execute("select id, txt from test", true);
             while (rs.next())
             {
                 cout << rs.column_name(0) << ": " << (rs.is_null(0) ? -1 : rs.get_int(0)) << endl;
                 cout << rs.column_name(1) << ": " << (rs.is_null(1) ? "NULL" : rs.get_string(1)) << endl;
             }
-			
-			// scrollable cursor
+            
+            // scrollable cursor
             rs = stmt.execute("select id, txt from test", true, true);
             while (rs.next())
             {
