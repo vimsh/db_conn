@@ -103,7 +103,7 @@ public:
 
     /**
      * Function prepares SQL stored procedure
-     * @param sql stored procedure to be executed
+     * @param proc stored procedure to be executed
      */
     void call(const std::string& proc)
     {
