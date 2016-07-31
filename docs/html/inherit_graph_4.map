@@ -1,0 +1,4 @@
+<map id="Graphical Class Hierarchy" name="Graphical Class Hierarchy">
+<area shape="rect" id="node1" href="$structvgi_1_1dbconn_1_1dbi_1_1iresult__set.html" title="iresult_set &#45; is an interface that describes common functionality for all concrete native implementat..." alt="" coords="5,13,185,39"/>
+<area shape="rect" id="node2" href="$classvgi_1_1dbconn_1_1dbd_1_1sybase_1_1result__set.html" title="result_set &#45; is a class that implements dbi::iresult_set interface and represents results of SQL quer..." alt="" coords="233,5,400,47"/>
+</map>
