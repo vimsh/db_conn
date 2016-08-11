@@ -32,7 +32,7 @@ class statement;
 struct iresult_set
 {
     // c++11 uses 'move' for return of std::string and std::vector and thus efficient
-    virtual ~iresult_set() { };
+    virtual ~iresult_set() { }
     virtual bool has_data() = 0;
     virtual bool more_results() = 0;
     virtual size_t row_count() const = 0;
@@ -59,8 +59,8 @@ struct iresult_set
     virtual int get_date(size_t col_idx) = 0;
     virtual double get_time(size_t col_idx) = 0;
     virtual time_t get_datetime(size_t col_idx) = 0;
-    virtual char16_t get_unichar(size_t col_idx) = 0;
-    virtual std::u16string get_unistring(size_t col_idx) = 0;
+    virtual char16_t get_u16char(size_t col_idx) = 0;
+    virtual std::u16string get_u16string(size_t col_idx) = 0;
     virtual std::vector<uint8_t> get_binary(size_t col_idx) = 0;
 };
 
@@ -280,10 +280,10 @@ public:
     double get_type_by_name(time);
     time_t get_type_by_index(datetime);
     time_t get_type_by_name(datetime);
-    char16_t get_type_by_index(unichar);
-    char16_t get_type_by_name(unichar);
-    std::u16string get_type_by_index(unistring);
-    std::u16string get_type_by_name(unistring);
+    char16_t get_type_by_index(u16char);
+    char16_t get_type_by_name(u16char);
+    std::u16string get_type_by_index(u16string);
+    std::u16string get_type_by_name(u16string);
     std::vector<uint8_t> get_type_by_index(binary);
     std::vector<uint8_t> get_type_by_name(binary);
 

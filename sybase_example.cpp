@@ -7,9 +7,9 @@ using namespace std;
 using namespace vgi::dbconn::dbi;
 using namespace vgi::dbconn::dbd;
 
-constexpr auto DBNAME = "DBSYB1";
-constexpr auto DBUSER = "sa";
-constexpr auto DBPASS = "sybase";
+constexpr auto DBNAME = "DB_DEVSYB101";
+constexpr auto DBUSER = "brass_rwd";
+constexpr auto DBPASS = "brass_rwd";
 
 int main(int argc, char** argv)
 {
@@ -64,7 +64,7 @@ int main(int argc, char** argv)
                          "float2 float(15) not null,         "
                          "double1 float(16) not null,        "
 #ifndef CS_VERSION_150
-                         "double2 float(18) not null, "
+                         "double2 float(18) not null,        "
 #else
                          "double2 double precision not null, "
 #endif
@@ -73,41 +73,39 @@ int main(int argc, char** argv)
                          "date2 datetime not null,           "
                          "date3 smalldatetime not null,      "
 #ifndef CS_VERSION_150
-                         "date4 datetime not null,        "
+                         "date4 datetime not null,           "
 #else
                          "date4 bigdatetime not null,        "
 #endif
-            
                          "datetime1 date not null,           "
                          "datetime2 datetime not null,       "
                          "datetime3 smalldatetime not null,  "
-            
 #ifndef CS_VERSION_150
-                         "datetime4 datetime not null,    "
+                         "datetime4 datetime not null,       "
 #else
                          "datetime4 bigdatetime not null,    "
 #endif      
                          "time1 time not null,               "
 #ifndef CS_VERSION_150
-                         "time2 time not null,            "
+                         "time2 time not null,               "
 #else
                          "time2 bigtime not null,            "
 #endif
                          "time3 datetime not null,           "
                          "time4 smalldatetime not null,      "
 #ifndef CS_VERSION_150
-                         "time5 datetime not null,        "
+                         "time5 datetime not null,           "
 #else
                          "time5 bigdatetime not null,        "
 #endif
                          "u16str1 univarchar(20) not null,   "
                          "u16str2 unichar(20) not null,      "
+                         "u16str3 unitext not null,          "
                          "u16char unichar(1) not null,       "
             
                          "nstr1 nchar(20) not null,          "
                          "nstr2 nvarchar(20) not null,       "
                          "nchar nchar(1) not null,           "
-            
 #ifndef CS_VERSION_150
                          "img binary(250),                   "
 #else
@@ -121,47 +119,48 @@ int main(int argc, char** argv)
             cout << "===== done...\n\n";
 
             cout << "===== inserting row into the table\n";
-            stmt.execute("insert into test values (\
-                          1, \
-                          'text1', \
-                          'text2', \
-                          'text3', \
-                          null, \
-                          0, \
-                          'Y', \
-                          'N', \
-                          1, \
-                          2, \
-                          167000000, \
-                          167890000, \
-                          1.45, \
-                          2.56, \
-                          12345.123456, \
-                          12345.123456, \
-                          12345.123456, \
-                          getdate(), \
-                          getdate(), \
-                          getdate(), \
-                          getdate(), \
-                          getdate(), \
-                          getdate(), \
-                          getdate(), \
-                          getdate(), \
-                          getdate(), \
-                          getdate(), \
-                          getdate(), \
-                          getdate(), \
-                          getdate(), \
-                          '\u041F\u0441\u0438\u0445', \
-                          '\u041F\u0441\u0438\u0445', \
-                          '\u0414', \
-                          '\u041F\u0441\u0438\u0445', \
-                          '\u041F\u0441\u0438\u0445', \
-                          '\u0414', \
+            stmt.execute("insert into test values (           \
+                          1,                                  \
+                          'text1',                            \
+                          'text2',                            \
+                          'text3',                            \
+                          null,                               \
+                          0,                                  \
+                          'Y',                                \
+                          'N',                                \
+                          1,                                  \
+                          2,                                  \
+                          167000000,                          \
+                          167890000,                          \
+                          1.45,                               \
+                          2.56,                               \
+                          12345.123456,                       \
+                          12345.123456,                       \
+                          12345.123456,                       \
+                          getdate(),                          \
+                          getdate(),                          \
+                          getdate(),                          \
+                          getdate(),                          \
+                          getdate(),                          \
+                          getdate(),                          \
+                          getdate(),                          \
+                          getdate(),                          \
+                          getdate(),                          \
+                          getdate(),                          \
+                          getdate(),                          \
+                          getdate(),                          \
+                          getdate(),                          \
+                          to_unichar(1055) + to_unichar(1089) + to_unichar(1080) + to_unichar(1093), \
+                          to_unichar(1055) + to_unichar(1089) + to_unichar(1080) + to_unichar(1093), \
+                          to_unichar(1055) + to_unichar(1089) + to_unichar(1080) + to_unichar(1093), \
+                          to_unichar(1044),                   \
+                          '\u041F\u0441\u0438\u0445',         \
+                          '\u041F\u0441\u0438\u0445',         \
+                          '\u0414',                           \
                           0x0000008300000000000100000000013c, \
-                          0x01234, \
-                          0x0123456789, \
-                          214748.3647, \
+                          0x01234,                            \
+                          0x0123456789,                       \
+                          214748.3647,                        \
                           122337203685477.58)");
             cout << "===== done...\n\n";
 
@@ -171,7 +170,9 @@ int main(int argc, char** argv)
             int date;
             time_t datetime;
             double time;
-            std::u16string unistr;
+            std::u16string u16str;
+            char16_t char16;
+            char* c;
             std::string nstr;
             std::vector<uint8_t> imgvec;
             std::vector<uint8_t> binvec1;
@@ -181,74 +182,107 @@ int main(int argc, char** argv)
             while (rs.next())
             {
                 cout << "-------------- data by index\n";
-                cout << rs.column_name(0) << ": >" << rs.get_int(0) << "<\n";
-                cout << rs.column_name(1) << ": >" << rs.get_string(1) << "<\n";
-                cout << rs.column_name(2) << ": >" << rs.get_string(2) << "<\n";
-                cout << rs.column_name(3) << ": >" << (rs.is_null(3) ? "NULL" : rs.get_string(3)) << "<\n";
-                cout << rs.column_name(4) << ": >" << (rs.is_null(4) ? "NULL" : rs.get_string(4)) << "<\n";
-                cout << rs.column_name(5) << ": >" << rs.get_bool(5) << "<\n";
-                cout << rs.column_name(6) << ": >" << rs.get_char(6) << "<\n";
-                cout << rs.column_name(7) << ": >" << rs.get_char(7) << "<\n";
-                cout << rs.column_name(8) << ": >" << rs.get_short(8) << "<\n";
-                cout << rs.column_name(9) << ": >" << rs.get_short(9) << "<\n";
-                cout << rs.column_name(10) << ": >" << rs.get_long(10) << "<\n";
-                cout << rs.column_name(11) << ": >" << rs.get_long(11) << "<\n";
-                cout << rs.column_name(12) << ": >" << rs.get_float(12) << "<\n";
-                cout << rs.column_name(13) << ": >" << rs.get_float(13) << "<\n";
-                cout << rs.column_name(14) << ": >" << rs.get_double(14) << "<\n";
-                cout << rs.column_name(15) << ": >" << rs.get_double(15) << "<\n";
-                cout << rs.column_name(16) << ": >" << rs.get_double(16) << "<\n";
-                cout << rs.column_name(17) << ": >" << rs.get_date(17) << "<\n"; date = rs.get_date(17);
-                cout << rs.column_name(18) << ": >" << rs.get_date(18) << "<\n";
-                cout << rs.column_name(19) << ": >" << rs.get_date(19) << "<\n";
-                cout << rs.column_name(20) << ": >" << rs.get_date(20) << "<\n";
-                cout << rs.column_name(21) << ": >" << ctime(&(tm = rs.get_datetime(21)));
-                cout << rs.column_name(22) << ": >" << ctime(&(tm = rs.get_datetime(22))); datetime = rs.get_datetime(22);
-                cout << rs.column_name(23) << ": >" << ctime(&(tm = rs.get_datetime(23)));
-                cout << rs.column_name(24) << ": >" << ctime(&(tm = rs.get_datetime(24)));
-                cout << rs.column_name(25) << ": >" << rs.get_time(25) << "<\n"; time = rs.get_time(25);
-                cout << rs.column_name(26) << ": >" << rs.get_time(26) << "<\n";
-                cout << rs.column_name(27) << ": >" << rs.get_time(27) << "<\n";
-                cout << rs.column_name(28) << ": >" << rs.get_time(28) << "<\n";
-                cout << rs.column_name(29) << ": >" << rs.get_time(29) << "<\n";
+                size_t i = 0;
+                cout << rs.column_name(i) << ": >" << rs.get_int(i) << "<\n"; ++i;
+                cout << rs.column_name(i) << ": >" << rs.get_string(i) << "<\n"; ++i;
+                cout << rs.column_name(i) << ": >" << rs.get_string(i) << "<\n"; ++i;
+                cout << rs.column_name(i) << ": >" << (rs.is_null(i) ? "NULL" : rs.get_string(i)) << "<\n"; ++i;
+                cout << rs.column_name(i) << ": >" << (rs.is_null(i) ? "NULL" : rs.get_string(i)) << "<\n"; ++i;
+                cout << rs.column_name(i) << ": >" << rs.get_bool(i) << "<\n"; ++i;
+                cout << rs.column_name(i) << ": >" << rs.get_char(i) << "<\n"; ++i;
+                cout << rs.column_name(i) << ": >" << rs.get_char(i) << "<\n"; ++i;
+                cout << rs.column_name(i) << ": >" << rs.get_short(i) << "<\n"; ++i;
+                cout << rs.column_name(i) << ": >" << rs.get_short(i) << "<\n"; ++i;
+                cout << rs.column_name(i) << ": >" << rs.get_long(i) << "<\n"; ++i;
+                cout << rs.column_name(i) << ": >" << rs.get_long(i) << "<\n"; ++i;
+                cout << rs.column_name(i) << ": >" << rs.get_float(i) << "<\n"; ++i;
+                cout << rs.column_name(i) << ": >" << rs.get_float(i) << "<\n"; ++i;
+                cout << rs.column_name(i) << ": >" << rs.get_double(i) << "<\n"; ++i;
+                cout << rs.column_name(i) << ": >" << rs.get_double(i) << "<\n"; ++i;
+                cout << rs.column_name(i) << ": >" << rs.get_double(i) << "<\n"; ++i;
+                cout << rs.column_name(i) << ": >" << rs.get_date(i) << "<\n"; date = rs.get_date(i); ++i;
+                cout << rs.column_name(i) << ": >" << rs.get_date(i) << "<\n"; ++i;
+                cout << rs.column_name(i) << ": >" << rs.get_date(i) << "<\n"; ++i;
+                cout << rs.column_name(i) << ": >" << rs.get_date(i) << "<\n"; ++i;
+                cout << rs.column_name(i) << ": >" << ctime(&(tm = rs.get_datetime(i))); ++i;
+                cout << rs.column_name(i) << ": >" << ctime(&(tm = rs.get_datetime(i))); datetime = rs.get_datetime(i); ++i;
+                cout << rs.column_name(i) << ": >" << ctime(&(tm = rs.get_datetime(i))); ++i;
+                cout << rs.column_name(i) << ": >" << ctime(&(tm = rs.get_datetime(i))); ++i;
+                cout << rs.column_name(i) << ": >" << rs.get_time(i) << "<\n"; time = rs.get_time(i); ++i;
+                cout << rs.column_name(i) << ": >" << rs.get_time(i) << "<\n"; ++i;
+                cout << rs.column_name(i) << ": >" << rs.get_time(i) << "<\n"; ++i;
+                cout << rs.column_name(i) << ": >" << rs.get_time(i) << "<\n"; ++i;
+                cout << rs.column_name(i) << ": >" << rs.get_time(i) << "<\n"; ++i;
                 //wstring_convert<codecvt_utf8<char16_t>, char16_t> cv;
-                //cout << rs.column_name(30) << ": >" << cv.to_bytes(rs.get_unistring(30)) << "<\n";
-                //cout << rs.column_name(32) << ": >" << cv.to_bytes(rs.get_unistring(31)) << "<\n";
-                //cout << rs.column_name(31) << ": >" << cv.to_bytes(rs.get_unichar(32)) << "<\n";
-                cout << rs.column_name(30) << ": >" << rs.get_unistring(30).data() << "<\n"; // this is utf-16  
-                unistr = rs.get_unistring(30);
-                cout << rs.column_name(31) << ": >" << rs.get_unistring(31).data() << "<\n"; // this is utf-16
-                cout << rs.column_name(32) << ": >" << rs.get_unichar(32) << "<\n"; // this is utf-16
-                cout << rs.column_name(33) << ": >" << rs.get_string(33) << "<\n"; // this is utf-8
-                nstr = rs.get_string(33);
-                cout << rs.column_name(34) << ": >" << rs.get_string(34) << "<\n"; // this is utf-8
-                cout << rs.column_name(35) << ": >" << rs.get_char(35) << "<\n"; // this is utf-8
-                auto idata1 = rs.get_binary(36);
+                //cout << rs.column_name(i) << ": >" << cv.to_bytes(rs.get_u16string(i)) << "<\n"; ++i;
+                //cout << rs.column_name(i) << ": >" << cv.to_bytes(rs.get_u16string(i)) << "<\n"; ++i;
+                //cout << rs.column_name(i) << ": >" << cv.to_bytes(rs.get_u16string(i)) << "<\n"; ++i;
+                //cout << rs.column_name(i) << ": >" << cv.to_bytes(rs.get_u16char(i)) << "<\n"; ++i;
+                cout.setf(ios_base::hex, ios::basefield);
+                cout << rs.column_name(i) << ": >";
+                u16str = rs.get_u16string(i); ++i;
+                for (auto chr16 : u16str)
+                {
+                    // little endian
+                    c = reinterpret_cast<char*>(&chr16);
+                    cout << "\\u" << setfill('0') << setw(2) << uppercase << (int)(*(++c));
+                    cout << setfill('0') << setw(2) << uppercase << (int)(*(--c));
+                }
+                cout << "<\n";
+                cout << rs.column_name(i) << ": >";
+                u16str = rs.get_u16string(i); ++i;
+                for (auto chr16 : u16str)
+                {
+                    // little endian
+                    c = reinterpret_cast<char*>(&chr16);
+                    cout << "\\u" << setfill('0') << setw(2) << uppercase << (int)(*(++c));
+                    cout << setfill('0') << setw(2) << uppercase << (int)(*(--c));
+                }
+                cout << "<\n";
+                cout << rs.column_name(i) << ": >";
+                u16str = rs.get_u16string(i); ++i;
+                for (auto chr16 : u16str)
+                {
+                    // little endian
+                    c = reinterpret_cast<char*>(&chr16);
+                    cout << "\\u" << setfill('0') << setw(2) << uppercase << (int)(*(++c));
+                    cout << setfill('0') << setw(2) << uppercase << (int)(*(--c));
+                }
+                cout << "<\n";
+                cout << rs.column_name(i) << ": >";
+                char16 = rs.get_u16char(i); ++i;
+                c = reinterpret_cast<char*>(&char16);
+                // little endian
+                cout << "\\u" << setfill('0') << setw(2) << uppercase << (int)(*(++c));
+                cout << setfill('0') << setw(2) << uppercase << (int)(*(--c));
+                cout << "<\n";
+                cout.setf(ios_base::dec, ios::basefield);
+                nstr = rs.get_string(i);
+                cout << rs.column_name(i) << ": >" << rs.get_string(i) << "<\n"; ++i; // this is utf-8
+                cout << rs.column_name(i) << ": >" << rs.get_string(i) << "<\n"; ++i; // this is utf-8
+                cout << rs.column_name(i) << ": >" << rs.get_char(i) << "<\n"; ++i; // this is utf-8
+                auto idata1 = rs.get_binary(i);
                 imgvec.insert(imgvec.begin(), idata1.begin(), idata1.end());
-                cout << rs.column_name(36) << ": >";
+                cout << rs.column_name(i) << ": >"; ++i;
                 cout.setf(ios_base::hex, ios::basefield);
-                for (uint16_t i : idata1)
-                    cout << setfill('0') << setw(2) << i;
-                cout.setf(ios_base::dec, ios::basefield);
+                for (uint16_t k : idata1)
+                    cout << setfill('0') << setw(2) << k;
                 cout << "<\n";
-                auto bdata1 = rs.get_binary(37);
+                auto bdata1 = rs.get_binary(i);
                 binvec1.insert(binvec1.begin(), bdata1.begin(), bdata1.end());
-                cout << rs.column_name(37) << ": >";
-                cout.setf(ios_base::hex, ios::basefield);
-                for (uint16_t i : bdata1)
-                    cout << setfill('0') << setw(2) << i;
-                cout.setf(ios_base::dec, ios::basefield);
+                cout << rs.column_name(i) << ": >"; ++i;
+                for (uint16_t k : bdata1)
+                    cout << setfill('0') << setw(2) << k;
                 cout << "<\n";
-                auto bbdata1 = rs.get_binary(38);
+                auto bbdata1 = rs.get_binary(i);
                 binvec2.insert(binvec2.begin(), bbdata1.begin(), bbdata1.end());
-                cout << rs.column_name(38) << ": >";
-                cout.setf(ios_base::hex, ios::basefield);
-                for (uint16_t i : bbdata1)
-                    cout << setfill('0') << setw(2) << i;
+                cout << rs.column_name(i) << ": >"; ++i;
+                for (uint16_t k : bbdata1)
+                    cout << setfill('0') << setw(2) << k;
                 cout.setf(ios_base::dec, ios::basefield);
                 cout << "<\n";
-                cout << rs.column_name(39) << ": >" << rs.get_double(39) << "<\n";
-                cout << rs.column_name(40) << ": >" << rs.get_double(40) << "<\n";
+                cout << rs.column_name(i) << ": >" << rs.get_double(i) << "<\n"; ++i;
+                cout << rs.column_name(i) << ": >" << rs.get_double(i) << "<\n"; ++i;
                 cout << "-------------- data by name\n";
                 cout << "column id: >" << rs.get_int("id") << "<\n";
                 cout << "column txt1: >" << rs.get_string("txt1") << "<\n";
@@ -268,9 +302,9 @@ int main(int argc, char** argv)
                 cout << "column double2: >" << rs.get_double("double2") << "<\n";
                 cout << "column double3: >" << rs.get_double("double3") << "<\n";
                 cout << "column date1: >" << rs.get_date("date1") << "<\n";
-                cout << "column date2: >" << rs.get_date("date1") << "<\n";
-                cout << "column date3: >" << rs.get_date("date1") << "<\n";
-                cout << "column date4: >" << rs.get_date("date1") << "<\n";
+                cout << "column date2: >" << rs.get_date("date2") << "<\n";
+                cout << "column date3: >" << rs.get_date("date3") << "<\n";
+                cout << "column date4: >" << rs.get_date("date4") << "<\n";
                 cout << "column datetime1: >" << ctime(&(tm = rs.get_datetime("datetime1")));
                 cout << "column datetime2: >" << ctime(&(tm = rs.get_datetime("datetime2")));
                 cout << "column datetime3: >" << ctime(&(tm = rs.get_datetime("datetime3")));
@@ -280,9 +314,45 @@ int main(int argc, char** argv)
                 cout << "column time3: >" << rs.get_time("time3") << "<\n";
                 cout << "column time4: >" << rs.get_time("time4") << "<\n";
                 cout << "column time5: >" << rs.get_time("time5") << "<\n";
-                cout << "column u16str1: >" << rs.get_unistring("u16str1").data() << "<\n"; // this is utf-16
-                cout << "column u16str2: >" << rs.get_unistring("u16str2").data() << "<\n"; // this is utf-16
-                cout << "column u16char: >" << rs.get_unichar("u16char") << "<\n"; // this is utf-16
+                cout.setf(ios_base::hex, ios::basefield);
+                cout << "column u16str1: >";
+                u16str = rs.get_u16string("u16str1");
+                for (auto chr16 : u16str)
+                {
+                    // little endian
+                    c = reinterpret_cast<char*>(&chr16);
+                    cout << "\\u" << setfill('0') << setw(2) << uppercase << (int)(*(++c));
+                    cout << setfill('0') << setw(2) << uppercase << (int)(*(--c));
+                }
+                cout << "<\n";
+                cout << "column u16str2: >";
+                u16str = rs.get_u16string("u16str2");
+                for (auto chr16 : u16str)
+                {
+                    // little endian
+                    c = reinterpret_cast<char*>(&chr16);
+                    cout << "\\u" << setfill('0') << setw(2) << uppercase << (int)(*(++c));
+                    cout << setfill('0') << setw(2) << uppercase << (int)(*(--c));
+                }
+                cout << "<\n";
+                cout << "column u16str3: >";
+                u16str = rs.get_u16string("u16str3");
+                for (auto chr16 : u16str)
+                {
+                    // little endian
+                    c = reinterpret_cast<char*>(&chr16);
+                    cout << "\\u" << setfill('0') << setw(2) << uppercase << (int)(*(++c));
+                    cout << setfill('0') << setw(2) << uppercase << (int)(*(--c));
+                }
+                cout << "<\n";
+                cout << "column u16char: >";
+                char16 = rs.get_u16char("u16char"); ++i;
+                c = reinterpret_cast<char*>(&char16);
+                // little endian
+                cout << "\\u" << setfill('0') << setw(2) << uppercase << (int)(*(++c));
+                cout << setfill('0') << setw(2) << uppercase << (int)(*(--c));
+                cout << "<\n";
+                cout.setf(ios_base::dec, ios::basefield);
                 cout << "column nstr1: >" << rs.get_string("nstr1") << "<\n"; // this is utf-8
                 cout << "column nstr2: >" << rs.get_string("nstr2") << "<\n"; // this is utf-8
                 cout << "column nchar: >" << rs.get_char("nchar") << "<\n"; // this is utf-8
@@ -292,18 +362,14 @@ int main(int argc, char** argv)
                 cout.setf(ios_base::hex, ios::basefield);
                 for (uint16_t i : idata2)
                     cout << setfill('0') << setw(2) << i;
-                cout.setf(ios_base::dec, ios::basefield);
                 cout << "<\n";
                 auto bdata2 = rs.get_binary("bin1");
                 cout << "column bin: >";
-                cout.setf(ios_base::hex, ios::basefield);
                 for (uint16_t i : bdata2)
                     cout << setfill('0') << setw(2) << i;
-                cout.setf(ios_base::dec, ios::basefield);
                 cout << "<\n";
                 auto bbdata2 = rs.get_binary("bin2");
                 cout << "column bin: >";
-                cout.setf(ios_base::hex, ios::basefield);
                 for (uint16_t i : bbdata2)
                     cout << setfill('0') << setw(2) << i;
                 cout.setf(ios_base::dec, ios::basefield);
@@ -314,51 +380,54 @@ int main(int argc, char** argv)
             cout << "===== done...\n\n";
 
             cout << "===== testing prepared statement (stored proc would be the same) data types binding\n";
-            stmt.prepare("insert into test values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-            stmt.set_int(0, 2);
-            stmt.set_string(1, "text1");
-            stmt.set_string(2, "text2");
-            stmt.set_string(3, "text3");
-            stmt.set_null(4);
-            stmt.set_bool(5, false);
-            stmt.set_char(6, 'Y');
-            stmt.set_char(7, 'N');
-            stmt.set_short(8, 1);
-            stmt.set_short(9, 2);
-            stmt.set_long(10, 167000000);
-            stmt.set_long(11, 167890000);
-            stmt.set_float(12, 1.45);
-            stmt.set_float(13, 2.56);
-            stmt.set_double(14, 12345.123456);
-            stmt.set_double(15, 12345.123456);
-            stmt.set_double(16, 12345.123456);
-            stmt.set_date(17, date);
-            stmt.set_date(18, date);
-            stmt.set_date(19, date);
-            stmt.set_date(20, date);
-            stmt.set_datetime(21, datetime);
-            stmt.set_datetime(22, datetime);
-            stmt.set_datetime(23, datetime);
-            stmt.set_datetime(24, datetime);
-            stmt.set_time(25, time);
-            stmt.set_time(26, time);
-            stmt.set_time(27, time);
-            stmt.set_time(28, time);
-            stmt.set_time(29, time);
-            stmt.set_unistring(30, unistr);
-            stmt.set_unistring(31, unistr);
-            stmt.set_unichar(32, unistr[0]);
-            stmt.set_string(33, nstr);
-            stmt.set_string(34, nstr);
-            stmt.set_char(35, nstr[0]);
-            stmt.set_binary(36, imgvec);
-            stmt.set_binary(37, binvec1);
-            stmt.set_binary(38, binvec2);
-            stmt.set_double(39, 214748.3647);
-            stmt.set_double(40, 122337203685477.58);
+            u16str = u"\u041F\u0441\u0438\u0445";
+            size_t i = 0;
+            stmt.prepare("insert into test values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            stmt.set_int(i++, 2);
+            stmt.set_string(i++, "text1");
+            stmt.set_string(i++, "text2");
+            stmt.set_string(i++, "text3");
+            stmt.set_null(i++);
+            stmt.set_bool(i++, false);
+            stmt.set_char(i++, 'Y');
+            stmt.set_char(i++, 'N');
+            stmt.set_short(i++, 1);
+            stmt.set_short(i++, 2);
+            stmt.set_long(i++, 167000000);
+            stmt.set_long(i++, 167890000);
+            stmt.set_float(i++, 1.45);
+            stmt.set_float(i++, 2.56);
+            stmt.set_double(i++, 12345.123456);
+            stmt.set_double(i++, 12345.123456);
+            stmt.set_double(i++, 12345.123456);
+            stmt.set_date(i++, date);
+            stmt.set_date(i++, date);
+            stmt.set_date(i++, date);
+            stmt.set_date(i++, date);
+            stmt.set_datetime(i++, datetime);
+            stmt.set_datetime(i++, datetime);
+            stmt.set_datetime(i++, datetime);
+            stmt.set_datetime(i++, datetime);
+            stmt.set_time(i++, time);
+            stmt.set_time(i++, time);
+            stmt.set_time(i++, time);
+            stmt.set_time(i++, time);
+            stmt.set_time(i++, time);
+            stmt.set_u16string(i++, u16str);
+            stmt.set_u16string(i++, u16str);
+            stmt.set_u16string(i++, u16str);
+            stmt.set_u16char(i++, u16str[0]);
+            stmt.set_string(i++, nstr);
+            stmt.set_string(i++, nstr);
+            stmt.set_char(i++, nstr[0]);
+            stmt.set_binary(i++, imgvec);
+            stmt.set_binary(i++, binvec1);
+            stmt.set_binary(i++, binvec2);
+            stmt.set_double(i++, 214748.3647);
+            stmt.set_double(i++, 122337203685477.58);
             stmt.execute();
             cout << "===== done...\n\n";
-            
+
             cout << "===== updating row in the table\n";
             stmt.execute("update test set txt4 = 'text4' where id = 1");
             cout << "===== done...\n\n";

@@ -31,7 +31,7 @@ class connection;
  */
 struct istatement
 {
-    virtual ~istatement() { };
+    virtual ~istatement() { }
     virtual void prepare(const std::string& sql) = 0;
     virtual void call(const std::string& sql) = 0;
     virtual iresult_set* execute(const std::string& sql, bool cursor = false, bool scrollable = false) = 0;
@@ -53,8 +53,8 @@ struct istatement
     virtual void set_date(size_t col_idx, int val) = 0;
     virtual void set_time(size_t col_idx, double val) = 0;
     virtual void set_datetime(size_t col_idx, time_t val) = 0;
-    virtual void set_unichar(size_t col_idx, char16_t val) = 0;
-    virtual void set_unistring(size_t col_idx, const std::u16string& val) = 0;
+    virtual void set_u16char(size_t col_idx, char16_t val) = 0;
+    virtual void set_u16string(size_t col_idx, const std::u16string& val) = 0;
     virtual void set_binary(size_t col_idx, const std::vector<uint8_t>& val) = 0;
 };
 
@@ -226,14 +226,14 @@ public:
         stmt_impl->set_datetime(col_idx, val);
     }
     
-    virtual void set_unichar(size_t col_idx, char16_t val)
+    virtual void set_u16char(size_t col_idx, char16_t val)
     {
-        stmt_impl->set_unichar(col_idx, val);
+        stmt_impl->set_u16char(col_idx, val);
     }
     
-    virtual void set_unistring(size_t col_idx, const std::u16string& val)
+    virtual void set_u16string(size_t col_idx, const std::u16string& val)
     {
-        stmt_impl->set_unistring(col_idx, val);
+        stmt_impl->set_u16string(col_idx, val);
     }
     
     virtual void set_binary(size_t col_idx, const std::vector<uint8_t>& val)

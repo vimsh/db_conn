@@ -32,6 +32,7 @@ namespace vgi { namespace dbconn { namespace dbd {
  */
 struct idriver
 {
+    virtual ~idriver() { }
     virtual dbi::connection create_connection(dbi::iconnection* iconn) = 0;
 };
 

@@ -83,7 +83,7 @@ class connection;
 /**
  * result_set - is a class that implements dbi::iresult_set interface and
  * represents results of SQL query execution with collection of helper function
- * to make the retrieval of the results of a sybase query execution an easy task.
+ * to make the retrieval of the results of a query execution an easy task.
  * result_set object cannot be instantiated directly, only via statement execute()
  * function call. result_set objects automatically cancel executed
  * queries and destroy allocated memory as they go out of scope.
@@ -152,11 +152,9 @@ public:
 
     virtual int column_index(const std::string& col_name)
     {
-        for (auto n = 0U; n < columns.size(); ++n)
-        {
-            if (0 == std::strcmp(col_name.c_str(), columns[n].name))
-                return n;
-        }
+        auto it = name2index.find(col_name);
+        if (it != name2index.end())
+            return it->second;
         return -1;
     }
 
@@ -446,7 +444,7 @@ public:
         return mktime(&stm);
     }
 
-    virtual char16_t get_unichar(size_t col_idx)
+    virtual char16_t get_u16char(size_t col_idx)
     {
         switch (columns[col_idx].datatype)
         {
@@ -461,7 +459,7 @@ public:
         return get<CS_UNICHAR>(col_idx);
     }
 
-    virtual std::u16string get_unistring(size_t col_idx)
+    virtual std::u16string get_u16string(size_t col_idx)
     {
         switch (columns[col_idx].datatype)
         {
@@ -507,8 +505,8 @@ private:
     friend class statement;
 
     result_set() {}
-    result_set(const result_set& rs) = delete;
-    result_set& operator=(const result_set& rs) = delete;
+    result_set(const result_set&) = delete;
+    result_set& operator=(const result_set&) = delete;
     
     void set_scrollable(bool scroll)
     {
@@ -744,7 +742,7 @@ private:
     std::map<std::string, int> name2index;
     std::vector<CS_DATAFMT> columns;
     std::vector<column_data> columndata;
-};
+}; // result_set
 
 
 
@@ -767,7 +765,8 @@ public:
     }
 
     connection(connection&& conn)
-        : cscontext(conn.cscontext), csconnection(conn.csconnection),
+        : ase(conn.ase), is_autocommit(conn.is_autocommit),
+          cscontext(conn.cscontext), csconnection(conn.csconnection),
           server(std::move(conn.server)), user(std::move(conn.user)),
           passwd(std::move(conn.passwd))
     {
@@ -780,6 +779,8 @@ public:
         if (this != &conn)
         {
             destroy();
+            ase = conn.ase;
+            is_autocommit = conn.is_autocommit;
             cscontext = conn.cscontext;
             csconnection = conn.csconnection;
             conn.cscontext = nullptr;
@@ -902,12 +903,12 @@ public:
         return *this;
     }
 
-    Context* cs_context() const
+    Context* native_context() const
     {
         return cscontext;
     }
 
-    Connection* cs_connection() const
+    Connection* native_connection() const
     {
         return csconnection;
     }
@@ -919,8 +920,10 @@ public:
 
 private:
     friend class driver;
+    friend class statement;
 
-    connection(const driver&) = delete;
+    connection() = delete;
+    connection(const connection&) = delete;
     connection& operator=(const connection&) = delete;
 
     connection(Context* context, CS_INT dbg_flag, const std::string& protofile, const std::string& server, const std::string& user, const std::string& passwd)
@@ -985,7 +988,7 @@ public:
         destroy(cscontext);
     }
 
-    dbi::connection get_connection(const std::string& server, const std::string& user, const std::string& passwd)
+    dbi::connection get_connection(const std::string& server, const std::string& user = "", const std::string& passwd = "")
     {
         return create_connection(new connection(cscontext, dbg_flag, protofile, server, user, passwd));
     }
@@ -1327,8 +1330,6 @@ public:
             throw std::runtime_error(std::string(__FUNCTION__).append(": Database connection is dead"));
         if (CS_SUCCEED != ct_send(cscommand))
             throw std::runtime_error(std::string(__FUNCTION__).append(": Failed to send command: ").append(command));
-        rs.cscontext = conn.cs_context();
-        rs.cscommand = cscommand;
         rs.next_result();
         return &rs;
     }
@@ -1455,6 +1456,11 @@ public:
         if (param_idx >= param_data.size())
             throw std::runtime_error(std::string(__FUNCTION__).append(": Invalid index"));
         param_data[param_idx].length = val.length();
+        if (CS_TEXT_TYPE == param_datafmt[param_idx].datatype)
+        {
+            param_datafmt[param_idx].maxlength = param_data[param_idx].length;
+            param_data[param_idx].allocate(param_data[param_idx].length);
+        }
         if (param_data[param_idx].length > param_datafmt[param_idx].maxlength)
             throw std::runtime_error(std::string(__FUNCTION__).append(": Data length is greater than maximum field size"));
         param_data[param_idx].indicator = 0;
@@ -1496,7 +1502,7 @@ public:
         setdt(param_idx, dt.data());
     }
     
-    virtual void set_unichar(size_t param_idx, char16_t val)
+    virtual void set_u16char(size_t param_idx, char16_t val)
     {
         if (param_idx >= param_data.size())
             throw std::runtime_error(std::string(__FUNCTION__).append(": Invalid index"));
@@ -1507,11 +1513,18 @@ public:
         std::memcpy(param_data[param_idx], &val, param_data[param_idx].length);
     }
     
-    virtual void set_unistring(size_t param_idx, const std::u16string& val)
+    virtual void set_u16string(size_t param_idx, const std::u16string& val)
     {
         if (param_idx >= param_data.size())
             throw std::runtime_error(std::string(__FUNCTION__).append(": Invalid index"));
         param_data[param_idx].length = sizeof(char16_t) * val.length();
+#ifdef CS_UNITEXT_TYPE
+        if (CS_UNITEXT_TYPE == param_datafmt[param_idx].datatype)
+        {
+            param_datafmt[param_idx].maxlength = param_data[param_idx].length;
+            param_data[param_idx].allocate(param_data[param_idx].length);
+        }
+#endif  
         if (param_data[param_idx].length > param_datafmt[param_idx].maxlength)
             throw std::runtime_error(std::string(__FUNCTION__).append(": Data length is greater than maximum field size"));
         param_data[param_idx].indicator = 0;
@@ -1523,6 +1536,11 @@ public:
         if (param_idx >= param_data.size())
             throw std::runtime_error(std::string(__FUNCTION__).append(": Invalid index"));
         param_data[param_idx].length = val.size();
+        if (CS_IMAGE_TYPE == param_datafmt[param_idx].datatype || CS_LONGBINARY_TYPE == param_datafmt[param_idx].datatype)
+        {
+            param_datafmt[param_idx].maxlength = param_data[param_idx].length;
+            param_data[param_idx].allocate(param_data[param_idx].length);
+        }
         if (param_data[param_idx].length > param_datafmt[param_idx].maxlength)
             throw std::runtime_error(std::string(__FUNCTION__).append(": Data length is greater than maximum field size"));
         param_data[param_idx].indicator = 0;
@@ -1532,10 +1550,14 @@ public:
 private:
     friend class connection;
     statement() = delete;
+    statement(const statement&) = delete;
+    statement& operator=(const statement&) = delete;
     statement(connection& conn) : conn(conn)
     {
-        if (CS_SUCCEED != ct_cmd_alloc(conn.cs_connection(), &cscommand))
+        if (CS_SUCCEED != ct_cmd_alloc(conn.csconnection, &cscommand))
             throw std::runtime_error(std::string(__FUNCTION__).append(": Failed to allocate command struct"));
+        rs.cscontext = conn.cscontext;
+        rs.cscommand = cscommand;
     }
     
     std::string genid(const std::string& type)
@@ -1653,7 +1675,7 @@ private:
                 srcfmt.format = CS_FMT_UNUSED;
                 srcfmt.locale = nullptr;
                 srcfmt.maxlength = sizeof(t);
-                if (CS_SUCCEED != cs_convert(conn.cs_context(), &srcfmt, &t, &param_datafmt[param_idx], param_data[param_idx], 0))
+                if (CS_SUCCEED != cs_convert(conn.cscontext, &srcfmt, &t, &param_datafmt[param_idx], param_data[param_idx], 0))
                     throw std::runtime_error(std::string(__FUNCTION__).append(": cs_convert failed"));
             }
             break;
@@ -1677,7 +1699,7 @@ private:
         srcfmt.format = CS_FMT_UNUSED;
         srcfmt.locale = nullptr;
         srcfmt.maxlength = val.length();
-        if (CS_SUCCEED != cs_convert(conn.cs_context(), &srcfmt, const_cast<char*>(val.c_str()), &param_datafmt[param_idx], param_data[param_idx], 0))
+        if (CS_SUCCEED != cs_convert(conn.cscontext, &srcfmt, const_cast<char*>(val.c_str()), &param_datafmt[param_idx], param_data[param_idx], 0))
             throw std::runtime_error(std::string(__FUNCTION__).append(": cs_convert failed"));
         param_data[param_idx].length = param_datafmt[param_idx].maxlength;
         param_data[param_idx].indicator = 0;
@@ -1792,7 +1814,7 @@ private:
     struct tm stm;
     std::vector<CS_DATAFMT> param_datafmt;
     std::vector<result_set::column_data> param_data;
-};
+}; // statement
 
 
 

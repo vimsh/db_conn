@@ -1,24 +1,25 @@
 # program/library target and files
-TARGET   = sample
-SRCS     = sample.cpp
+TARGET   = sybase_example
+SRCS     = sybase_example.cpp
 
 # explicit path to sybase library
-LIBPATH  = -L/opt/sybase12_5_64/OCS/lib
-INCLUDES = -I/opt/sybase12_5_64/OCS/include
+LIBPATH  = -L/opt/sybase15/OCS-15_0/lib
+INCLUDES = -I/opt/sybase15/OCS-15_0/include
 
 # compiler path and flags
 CC       = /opt/gcc/bin/g++
-CFLAGS   = -std=c++11 -Wall -Wno-unused -Wno-sequence-point -Wno-parentheses -c -ggdb3 -m64 -pthread -DSYB_LP64 -D_REENTRANT
+CFLAGS   = -std=c++1y -Wall -Wno-unused -Wno-sequence-point -Wno-parentheses -c -ggdb3 -m64 -pthread -DSYB_LP64 -D_REENTRANT
 
 # sybase libraries to include in the build
-CTLIB    = -lct_r64  # client library
-CSLIB    = -lcs_r64  # cs library
-TCLIB    = -lsybtcl_r64 # transport control layer
-COMLIB   = -lcomn_r64 # internal shared utility library
-INTLLIB  = -lintl_r64 # internationalization support library
-BLKLIB   = -lblk_r64 # bulk copy routines
+CTLIB    = -lsybct64   # client library
+CSLIB    = -lsybcs64   # cs library
+TCLIB    = -lsybtcl64  # transport control layer
+COMLIB   = -lsybcomn64 # internal shared utility library
+INTLLIB  = -lsybintl64 # internationalization support library
+UNICLIB  = -lsybunic64 # unicode library
+BLKLIB   = -lsybblk64  # bulk copy routines
 SYSLIBS  = -Wl,-Bdynamic -ldl -lpthread -lnsl -lm
-LIBS     = -Bstatic $(LIBPATH) $(CTLIB) $(CSLIB) $(TCLIB) $(COMLIB) $(INTLLIB) $(SYSLIBS)
+LIBS     = -Bstatic $(LIBPATH) $(CTLIB) $(CSLIB) $(TCLIB) $(COMLIB) $(INTLLIB) $(UNICLIB) $(SYSLIBS)
 
 # make env setup
 OBJDIR   = obj

@@ -37,7 +37,7 @@ namespace vgi { namespace dbconn { namespace dbi {
  */
 struct iconnection
 {
-    virtual ~iconnection() { };
+    virtual ~iconnection() { }
     virtual bool connect() = 0;
     virtual void disconnect() = 0;
     virtual void commit() = 0;
