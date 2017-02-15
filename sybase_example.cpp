@@ -7,9 +7,9 @@ using namespace std;
 using namespace vgi::dbconn::dbi;
 using namespace vgi::dbconn::dbd;
 
-constexpr auto DBNAME = "DB_DEVSYB101";
-constexpr auto DBUSER = "brass_rwd";
-constexpr auto DBPASS = "brass_rwd";
+constexpr auto DBNAME = "DEV_SYB_DB";
+constexpr auto DBUSER = "sa";
+constexpr auto DBPASS = "password";
 
 int main(int argc, char** argv)
 {
