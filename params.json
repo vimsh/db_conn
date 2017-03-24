@@ -1,6 +1,6 @@
 {
   "name": "db_conn",
-  "tagline": "C++ sybase driver",
+  "tagline": "C++ Sybase driver, SQLite driver",
   "body": "aaaa",
   "note": "Don't delete this file! It's used internally to help with page regeneration."
 }
