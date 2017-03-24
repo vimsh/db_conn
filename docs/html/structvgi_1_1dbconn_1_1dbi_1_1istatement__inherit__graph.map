@@ -1,3 +1,4 @@
 <map id="vgi::dbconn::dbi::istatement" name="vgi::dbconn::dbi::istatement">
-<area shape="rect" id="node2" href="$classvgi_1_1dbconn_1_1dbd_1_1sybase_1_1statement.html" title="statement &#45; is a class that implements dbi::istatement interface and represents native database state..." alt="" coords="13,80,179,121"/>
+<area shape="rect" id="node2" href="$classvgi_1_1dbconn_1_1dbd_1_1sqlite_1_1statement.html" title="statement &#45; is a class that implements dbi::istatement interface and represents native database state..." alt="" coords="5,80,160,121"/>
+<area shape="rect" id="node3" href="$classvgi_1_1dbconn_1_1dbd_1_1sybase_1_1statement.html" title="statement &#45; is a class that implements dbi::istatement interface and represents native database state..." alt="" coords="185,80,351,121"/>
 </map>

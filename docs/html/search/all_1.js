@@ -8,6 +8,7 @@ var searchData=
   ['commit',['commit',['../classvgi_1_1dbconn_1_1dbi_1_1connection.html#a20a62868eaa129853613a649e4e0bf97',1,'vgi::dbconn::dbi::connection']]],
   ['connect',['connect',['../classvgi_1_1dbconn_1_1dbi_1_1connection.html#ad211be01e505ad90748865f42b2f98da',1,'vgi::dbconn::dbi::connection']]],
   ['connected',['connected',['../classvgi_1_1dbconn_1_1dbi_1_1connection.html#a309e33ba47d2001ee0bdb7f0fdf0fcad',1,'vgi::dbconn::dbi::connection']]],
+  ['connection',['connection',['../classvgi_1_1dbconn_1_1dbd_1_1sqlite_1_1connection.html',1,'vgi::dbconn::dbd::sqlite']]],
   ['connection',['connection',['../classvgi_1_1dbconn_1_1dbi_1_1connection.html#a64500fc5ad532189a677785825e9aec1',1,'vgi::dbconn::dbi::connection']]],
   ['connection',['connection',['../classvgi_1_1dbconn_1_1dbd_1_1sybase_1_1connection.html',1,'vgi::dbconn::dbd::sybase']]],
   ['connection',['connection',['../classvgi_1_1dbconn_1_1dbi_1_1connection.html',1,'vgi::dbconn::dbi']]]

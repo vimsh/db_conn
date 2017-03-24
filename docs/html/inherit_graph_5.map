@@ -1,4 +1,5 @@
 <map id="Graphical Class Hierarchy" name="Graphical Class Hierarchy">
-<area shape="rect" id="node1" href="$structvgi_1_1dbconn_1_1dbi_1_1istatement.html" title="istatement &#45; is an interface that describes common functionality for all concrete native implementati..." alt="" coords="5,13,187,39"/>
-<area shape="rect" id="node2" href="$classvgi_1_1dbconn_1_1dbd_1_1sybase_1_1statement.html" title="statement &#45; is a class that implements dbi::istatement interface and represents native database state..." alt="" coords="235,5,401,47"/>
+<area shape="rect" id="node1" href="$structvgi_1_1dbconn_1_1dbi_1_1istatement.html" title="istatement &#45; is an interface that describes common functionality for all concrete native implementati..." alt="" coords="5,46,187,73"/>
+<area shape="rect" id="node2" href="$classvgi_1_1dbconn_1_1dbd_1_1sqlite_1_1statement.html" title="statement &#45; is a class that implements dbi::istatement interface and represents native database state..." alt="" coords="241,5,395,47"/>
+<area shape="rect" id="node3" href="$classvgi_1_1dbconn_1_1dbd_1_1sybase_1_1statement.html" title="statement &#45; is a class that implements dbi::istatement interface and represents native database state..." alt="" coords="235,71,401,112"/>
 </map>

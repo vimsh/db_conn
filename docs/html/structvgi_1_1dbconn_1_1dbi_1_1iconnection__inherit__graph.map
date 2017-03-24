@@ -1,3 +1,4 @@
 <map id="vgi::dbconn::dbi::iconnection" name="vgi::dbconn::dbi::iconnection">
-<area shape="rect" id="node2" href="$classvgi_1_1dbconn_1_1dbd_1_1sybase_1_1connection.html" title="connection &#45; is a class that implements dbi::iconnection interface and represents native database con..." alt="" coords="15,80,182,121"/>
+<area shape="rect" id="node2" href="$classvgi_1_1dbconn_1_1dbd_1_1sqlite_1_1connection.html" title="connection &#45; is a class that implements dbi::iconnection interface and represents native database con..." alt="" coords="5,80,160,121"/>
+<area shape="rect" id="node3" href="$classvgi_1_1dbconn_1_1dbd_1_1sybase_1_1connection.html" title="connection &#45; is a class that implements dbi::iconnection interface and represents native database con..." alt="" coords="185,80,351,121"/>
 </map>
