@@ -3,6 +3,12 @@ var annotated_dup =
     [ "vgi", null, [
       [ "dbconn", null, [
         [ "dbd", null, [
+          [ "sqlite", null, [
+            [ "connection", "classvgi_1_1dbconn_1_1dbd_1_1sqlite_1_1connection.html", null ],
+            [ "driver", "classvgi_1_1dbconn_1_1dbd_1_1sqlite_1_1driver.html", null ],
+            [ "result_set", "classvgi_1_1dbconn_1_1dbd_1_1sqlite_1_1result__set.html", null ],
+            [ "statement", "classvgi_1_1dbconn_1_1dbd_1_1sqlite_1_1statement.html", null ]
+          ] ],
           [ "sybase", null, [
             [ "connection", "classvgi_1_1dbconn_1_1dbd_1_1sybase_1_1connection.html", null ],
             [ "driver", "classvgi_1_1dbconn_1_1dbd_1_1sybase_1_1driver.html", null ],

@@ -8,6 +8,14 @@
 <link href="tabs.css" rel="stylesheet" type="text/css"/>
 <script type="text/javascript" src="jquery.js"></script>
 <script type="text/javascript" src="dynsections.js"></script>
+<link href="navtree.css" rel="stylesheet" type="text/css"/>
+<script type="text/javascript" src="resize.js"></script>
+<script type="text/javascript" src="navtreedata.js"></script>
+<script type="text/javascript" src="navtree.js"></script>
+<script type="text/javascript">
+  $(document).ready(initResizable);
+  $(window).load(resizeHeight);
+</script>
 <link href="search/search.css" rel="stylesheet" type="text/css"/>
 <script type="text/javascript" src="search/searchdata.js"></script>
 <script type="text/javascript" src="search/search.js"></script>
@@ -70,6 +78,20 @@ var searchBox = new SearchBox("searchBox", "search",false,'Search');
     </ul>
   </div>
 </div><!-- top -->
+<div id="side-nav" class="ui-resizable side-nav-resizable">
+  <div id="nav-tree">
+    <div id="nav-tree-contents">
+      <div id="nav-sync" class="sync"></div>
+    </div>
+  </div>
+  <div id="splitbar" style="-moz-user-select:none;" 
+       class="ui-resizable-handle">
+  </div>
+</div>
+<script type="text/javascript">
+$(document).ready(function(){initNavTree('classes.html','');});
+</script>
+<div id="doc-content">
 <!-- window showing the filter options -->
 <div id="MSearchSelectWindow"
      onmouseover="return searchBox.OnSearchSelectShow()"
@@ -92,27 +114,30 @@ var searchBox = new SearchBox("searchBox", "search",false,'Search');
 <div class="qindex"><a class="qindex" href="#letter_C">C</a>&#160;|&#160;<a class="qindex" href="#letter_D">D</a>&#160;|&#160;<a class="qindex" href="#letter_I">I</a>&#160;|&#160;<a class="qindex" href="#letter_R">R</a>&#160;|&#160;<a class="qindex" href="#letter_S">S</a></div>
 <table class="classindex">
 <tr><td rowspan="2" valign="bottom"><a name="letter_c"></a><table border="0" cellspacing="0" cellpadding="0"><tr><td><div class="ah">&#160;&#160;c&#160;&#160;</div></td></tr></table>
-</td><td valign="top"><a class="el" href="classvgi_1_1dbconn_1_1dbd_1_1sqlite_1_1driver.html">driver</a> (vgi::dbconn::dbd::sqlite)&#160;&#160;&#160;</td><td valign="top"><a class="el" href="structvgi_1_1dbconn_1_1dbi_1_1iresult__set.html">iresult_set</a> (vgi::dbconn::dbi)&#160;&#160;&#160;</td><td valign="top"><a class="el" href="classvgi_1_1dbconn_1_1dbd_1_1sqlite_1_1result__set.html">result_set</a> (vgi::dbconn::dbd::sqlite)&#160;&#160;&#160;</td><td></td></tr>
+</td><td valign="top"><a class="el" href="classvgi_1_1dbconn_1_1dbd_1_1sqlite_1_1driver.html">driver</a> (vgi::dbconn::dbd::sqlite)&#160;&#160;&#160;</td><td valign="top"><a class="el" href="structvgi_1_1dbconn_1_1dbi_1_1iresult__set.html">iresult_set</a> (vgi::dbconn::dbi)&#160;&#160;&#160;</td><td valign="top"><a class="el" href="classvgi_1_1dbconn_1_1dbd_1_1sybase_1_1result__set.html">result_set</a> (vgi::dbconn::dbd::sybase)&#160;&#160;&#160;</td><td></td></tr>
 <tr><td valign="top"><a class="el" href="classvgi_1_1dbconn_1_1dbd_1_1sybase_1_1driver.html">driver</a> (vgi::dbconn::dbd::sybase)&#160;&#160;&#160;</td><td valign="top"><a class="el" href="structvgi_1_1dbconn_1_1dbi_1_1istatement.html">istatement</a> (vgi::dbconn::dbi)&#160;&#160;&#160;</td><td rowspan="2" valign="bottom"><a name="letter_s"></a><table border="0" cellspacing="0" cellpadding="0"><tr><td><div class="ah">&#160;&#160;s&#160;&#160;</div></td></tr></table>
 </td><td></td></tr>
 <tr><td valign="top"><a class="el" href="classvgi_1_1dbconn_1_1dbi_1_1connection.html">connection</a> (vgi::dbconn::dbi)&#160;&#160;&#160;</td><td rowspan="2" valign="bottom"><a name="letter_i"></a><table border="0" cellspacing="0" cellpadding="0"><tr><td><div class="ah">&#160;&#160;i&#160;&#160;</div></td></tr></table>
 </td><td rowspan="2" valign="bottom"><a name="letter_r"></a><table border="0" cellspacing="0" cellpadding="0"><tr><td><div class="ah">&#160;&#160;r&#160;&#160;</div></td></tr></table>
 </td><td></td></tr>
-<tr><td valign="top"><a class="el" href="classvgi_1_1dbconn_1_1dbd_1_1sqlite_1_1connection.html">connection</a> (vgi::dbconn::dbd::sqlite)&#160;&#160;&#160;</td><td valign="top"><a class="el" href="classvgi_1_1dbconn_1_1dbd_1_1sybase_1_1statement.html">statement</a> (vgi::dbconn::dbd::sybase)&#160;&#160;&#160;</td><td></td></tr>
-<tr><td valign="top"><a class="el" href="classvgi_1_1dbconn_1_1dbd_1_1sybase_1_1connection.html">connection</a> (vgi::dbconn::dbd::sybase)&#160;&#160;&#160;</td><td valign="top"><a class="el" href="structvgi_1_1dbconn_1_1dbi_1_1iconnection.html">iconnection</a> (vgi::dbconn::dbi)&#160;&#160;&#160;</td><td valign="top"><a class="el" href="classvgi_1_1dbconn_1_1dbi_1_1result__set.html">result_set</a> (vgi::dbconn::dbi)&#160;&#160;&#160;</td><td valign="top"><a class="el" href="classvgi_1_1dbconn_1_1dbi_1_1statement.html">statement</a> (vgi::dbconn::dbi)&#160;&#160;&#160;</td><td></td></tr>
+<tr><td valign="top"><a class="el" href="classvgi_1_1dbconn_1_1dbd_1_1sqlite_1_1connection.html">connection</a> (vgi::dbconn::dbd::sqlite)&#160;&#160;&#160;</td><td valign="top"><a class="el" href="classvgi_1_1dbconn_1_1dbi_1_1statement.html">statement</a> (vgi::dbconn::dbi)&#160;&#160;&#160;</td><td></td></tr>
+<tr><td valign="top"><a class="el" href="classvgi_1_1dbconn_1_1dbd_1_1sybase_1_1connection.html">connection</a> (vgi::dbconn::dbd::sybase)&#160;&#160;&#160;</td><td valign="top"><a class="el" href="structvgi_1_1dbconn_1_1dbi_1_1iconnection.html">iconnection</a> (vgi::dbconn::dbi)&#160;&#160;&#160;</td><td valign="top"><a class="el" href="classvgi_1_1dbconn_1_1dbi_1_1result__set.html">result_set</a> (vgi::dbconn::dbi)&#160;&#160;&#160;</td><td valign="top"><a class="el" href="classvgi_1_1dbconn_1_1dbd_1_1sybase_1_1statement.html">statement</a> (vgi::dbconn::dbd::sybase)&#160;&#160;&#160;</td><td></td></tr>
 <tr><td rowspan="2" valign="bottom"><a name="letter_d"></a><table border="0" cellspacing="0" cellpadding="0"><tr><td><div class="ah">&#160;&#160;d&#160;&#160;</div></td></tr></table>
-</td><td valign="top"><a class="el" href="structvgi_1_1dbconn_1_1dbd_1_1idriver.html">idriver</a> (vgi::dbconn::dbd)&#160;&#160;&#160;</td><td valign="top"><a class="el" href="classvgi_1_1dbconn_1_1dbd_1_1sybase_1_1result__set.html">result_set</a> (vgi::dbconn::dbd::sybase)&#160;&#160;&#160;</td><td valign="top"><a class="el" href="classvgi_1_1dbconn_1_1dbd_1_1sqlite_1_1statement.html">statement</a> (vgi::dbconn::dbd::sqlite)&#160;&#160;&#160;</td><td></td></tr>
+</td><td valign="top"><a class="el" href="structvgi_1_1dbconn_1_1dbd_1_1idriver.html">idriver</a> (vgi::dbconn::dbd)&#160;&#160;&#160;</td><td valign="top"><a class="el" href="classvgi_1_1dbconn_1_1dbd_1_1sqlite_1_1result__set.html">result_set</a> (vgi::dbconn::dbd::sqlite)&#160;&#160;&#160;</td><td valign="top"><a class="el" href="classvgi_1_1dbconn_1_1dbd_1_1sqlite_1_1statement.html">statement</a> (vgi::dbconn::dbd::sqlite)&#160;&#160;&#160;</td><td></td></tr>
 <tr><td></td><td></td><td></td><td></td></tr>
 <tr><td valign="top"><a class="el" href="classvgi_1_1dbconn_1_1dbd_1_1driver.html">driver</a> (vgi::dbconn::dbd)&#160;&#160;&#160;</td><td></td><td></td><td></td><td></td></tr>
 <tr><td></td><td></td><td></td><td></td><td></td></tr>
 </table>
 <div class="qindex"><a class="qindex" href="#letter_C">C</a>&#160;|&#160;<a class="qindex" href="#letter_D">D</a>&#160;|&#160;<a class="qindex" href="#letter_I">I</a>&#160;|&#160;<a class="qindex" href="#letter_R">R</a>&#160;|&#160;<a class="qindex" href="#letter_S">S</a></div>
 </div><!-- contents -->
+</div><!-- doc-content -->
 <!-- start footer part -->
-<hr class="footer"/><address class="footer"><small>
-Generated by &#160;<a href="http://www.doxygen.org/index.html">
-<img class="footer" src="doxygen.png" alt="doxygen"/>
-</a> 1.8.11
-</small></address>
+<div id="nav-path" class="navpath"><!-- id is needed for treeview function! -->
+  <ul>
+    <li class="footer">Generated on Thu Mar 23 2017 22:32:51 for db_conn by
+    <a href="http://www.doxygen.org/index.html">
+    <img class="footer" src="doxygen.png" alt="doxygen"/></a> 1.8.11 </li>
+  </ul>
+</div>
 </body>
 </html>
