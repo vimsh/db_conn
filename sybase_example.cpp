@@ -1,7 +1,7 @@
 #include "sybase_driver.hpp"
 
 #include <locale>
-//#include <codecvt>
+//#include <codecvt> // Standard code conversion facets - uncomment if available
 #include <iomanip>
 using namespace std;
 using namespace vgi::dbconn::dbi;
@@ -33,14 +33,10 @@ int main(int argc, char** argv)
             stmt.execute("use tempdb");
             cout << "===== done...\n\n";
             
-            try
-            {
-                stmt.execute("if object_id('tempdb..test') is not null drop table test");
-            }
-            catch (const exception&)
-            {
-                // ignore exception if table doesn't exist
-            }
+            cout << "===== drop table if it exists\n";
+            stmt.execute("if object_id('tempdb..test') is not null drop table test");
+            cout << "===== done...\n\n";
+
             cout << "===== creating table\n";
             stmt.execute("create table test (                "
                          "id int not null,                   "
@@ -213,11 +209,13 @@ int main(int argc, char** argv)
                 cout << rs.column_name(i) << ": >" << rs.get_time(i) << "<\n"; ++i;
                 cout << rs.column_name(i) << ": >" << rs.get_time(i) << "<\n"; ++i;
                 cout << rs.column_name(i) << ": >" << rs.get_time(i) << "<\n"; ++i;
+                // Standard code conversion facets
                 //wstring_convert<codecvt_utf8<char16_t>, char16_t> cv;
                 //cout << rs.column_name(i) << ": >" << cv.to_bytes(rs.get_u16string(i)) << "<\n"; ++i;
                 //cout << rs.column_name(i) << ": >" << cv.to_bytes(rs.get_u16string(i)) << "<\n"; ++i;
                 //cout << rs.column_name(i) << ": >" << cv.to_bytes(rs.get_u16string(i)) << "<\n"; ++i;
                 //cout << rs.column_name(i) << ": >" << cv.to_bytes(rs.get_u16char(i)) << "<\n"; ++i;
+                // Or just print out each char after manual conversion
                 cout.setf(ios_base::hex, ios::basefield);
                 cout << rs.column_name(i) << ": >";
                 u16str = rs.get_u16string(i); ++i;
@@ -256,6 +254,8 @@ int main(int argc, char** argv)
                 cout << "\\u" << setfill('0') << setw(2) << uppercase << (int)(*(++c));
                 cout << setfill('0') << setw(2) << uppercase << (int)(*(--c));
                 cout << "<\n";
+                // End of code conversion facets
+                
                 cout.setf(ios_base::dec, ios::basefield);
                 nstr = rs.get_string(i);
                 cout << rs.column_name(i) << ": >" << rs.get_string(i) << "<\n"; ++i; // this is utf-8
@@ -457,6 +457,7 @@ int main(int argc, char** argv)
 
         array<char, 256> version_string = {'\0'};
         long version = 0;
+        string verstr;
         string my_context_info = "A: 1";
         string my_conn_info = "B: 2";
         
@@ -471,6 +472,7 @@ int main(int argc, char** argv)
 //            debug_protocol_file("proto.log").
             // get version
             version(version).
+            version_string(verstr).
             // set application name
             app_name("test.conn2").
             // set context maximum connections
@@ -530,6 +532,7 @@ int main(int argc, char** argv)
                 return CS_SUCCEED;
             }).
             // use low level function to set/get any other desired configuration for cs/ct
+            // get Client-Library version string - same as what version_sring() would return
             config(sybase::action::GET, sybase::cfg_type::CT_LIB, CS_VER_STRING, version_string.data(), version_string.size());
 
             
@@ -541,8 +544,9 @@ int main(int argc, char** argv)
         /*
          * Print information from the driver
          */
-        cout << endl << "Client-Library’s true version string: " << version_string.data();
-        cout << endl << "The version of Client-Library in use by this context: " << version;
+        cout << endl << "Client-Library version number: " << version;
+        cout << endl << "Client-Library version string: " << verstr;
+        cout << endl << "Client-Library version string via explicit request using config() call: " << version_string.data();
         string* my_cust_context_data;
         // get the context user data that was set before
         sybdriver.userdata(my_cust_context_data);
@@ -571,6 +575,7 @@ int main(int argc, char** argv)
         /*
          * Open connection and run some tests
          */
+        cout << "===== connecting to database server\n";
         if (conn.connect())
         {
             cout << "===== done...\n\n";
@@ -591,22 +596,19 @@ int main(int argc, char** argv)
              * Use multiple insert statement to populate table.
              * Some statements are invalid.
              * 
-             * Note that Sybase handles errors differently depending on type of error
+             * Note that errors are handled differently depending on type of error
              */
             
             cout << "===== using multiple statements to insert rows into the table - all will fail on invalid table name in one of the statements\n";
-            /*
-             * Sybase will fail execution of whole chain of sql statements
-             * since table does not exist
-             */
+            // If failed to prepare all statement - then whole chain fails
             try
             {
-                rs = stmt.execute( "insert into test (id, txt) values (1, 'hello1') \
-                                    insert into test (id, txt) values (1, 'hello1') \
-                                    insert into test (id, txt) values (2, 'hello2') \
+                rs = stmt.execute( "insert into test  (id, txt) values (1, 'hello1') \
+                                    insert into test  (id, txt) values (1, 'hello1') \
+                                    insert into test  (id, txt) values (2, 'hello2') \
                                     insert into bogus (id, txt) values (7, 'hello2') \
-                                    insert into test (id, txt) values (3, 'hello2') \
-                                    insert into test (id, txt) values (4, 'hello3') ");
+                                    insert into test  (id, txt) values (3, 'hello2') \
+                                    insert into test  (id, txt) values (4, 'hello3') ");
             }
             catch (const exception& e)
             {
@@ -617,10 +619,7 @@ int main(int argc, char** argv)
             
             
             cout << "===== using multiple statements to insert rows into the table - two will fail on broken unique index\n";
-            /*
-             * Sybase will fail only execution of sql statements that breaks
-             * unique indexing
-             */
+            // If certain statements fail during runtime - then all the other statements continue to be executed
             try
             {
                 rs = stmt.execute( "insert into test (id, txt) values (1, 'hello1') \
@@ -645,15 +644,12 @@ int main(int argc, char** argv)
              */
             
             cout << "===== using multiple statements to update rows in the table - all will fail on invalid data type for the column in one of the statements\n";
-            /*
-             * Sybase will fail execution of whole chain of sql statements
-             * since data type is wrong for the column
-             */
+            // If failed to prepare all statement (invalid data type) - then whole chain fails
             try
             {
-                rs = stmt.execute( "update test set txt = 'boom' where id = 5 \
+                rs = stmt.execute( "update test set txt = 'boom'  where id = 5 \
                                     update test set txt = 'test2' where id = 6 \
-                                    update test set txt = 3 where id = 1 ");
+                                    update test set txt = 3 where id = 1      ");
             }
             catch (const exception& e)
             {
@@ -662,13 +658,12 @@ int main(int argc, char** argv)
             cout << "rows affected = " << rs.rows_affected() << "\n";
             cout << "===== done...\n\n";
             
-            cout << "===== using multiple statements to update rows in the table\n";
-            /*
-             * Sybase will update all matching records
-             */
+            
+            cout << "===== using multiple statements to update rows in the table - one will fail on invalid id\n";
+            // If certain statements fail during runtime - then all the other statements continue to be executed
             try
             {
-                rs = stmt.execute( "update test set txt = 'boom' where id = 5 \
+                rs = stmt.execute( "update test set txt = 'boom'  where id = 5 \
                                     update test set txt = 'test2' where id = 6 ");
             }
             catch (const exception& e)
@@ -682,23 +677,17 @@ int main(int argc, char** argv)
             /********************************************************************
              * Use multiple select statement to retrieve data from table.
              * Some statements are invalid.
-             * 
-             * Note that Sybase handles errors differently depending on type of error
              */
-            
             
             cout << "===== using multiple statements to select data from the table - all will fail on invalid table name in one of the statements\n";
-            /*
-             * Here Sybase will fail execution of whole chain of sql statements
-             * as table doesn't exist
-             */
+            // If failed to prepare all statement (invalid table name) - then whole chain fails
             try
             {
-                rs = stmt.execute( "select id from test where txt = 'hello1' \
-                                    select id, txt from test where txt = 'hello2' \
-                                    select id from test where txt = 'hello4' \
-                                    select id, txt from bogus where txt = 'aa' \
-                                    select id, txt from test where txt = 'hello3' ");
+                rs = stmt.execute( "select id      from test  where txt = 'hello1' \
+                                    select id, txt from test  where txt = 'hello2' \
+                                    select id      from test  where txt = 'hello4' \
+                                    select id, txt from bogus where txt = 'aa'     \
+                                    select id, txt from test  where txt = 'hello3' ");
             }
             catch (const exception& e)
             {
@@ -709,18 +698,14 @@ int main(int argc, char** argv)
             cout << "===== done...\n\n";
             
             
-            cout << "===== using multiple statements to select data from the table - one will fail on invalid data type for the column (unlike isert/update which fail all)\n";
-            /********************************************************************
-             * Here Sybase will fail only execution of sql statements that has
-             * specified invalid data type for column in where clause
-             * It doesn't break the whole chain though unlike insert/update
-             */
+            cout << "===== using multiple statements to select data from the table - one will return no data, one will fail on invalid data type for the column\n";
+            // If certain statements fail during runtime - then all the other statements continue to be executed
             try
             {
-                rs = stmt.execute( "select id from test where txt = 'hello1' \
+                rs = stmt.execute( "select id      from test where txt = 'hello1' \
                                     select id, txt from test where txt = 'hello2' \
-                                    select id from test where txt = 'hello4' \
-                                    select id, txt from test where txt = 1 \
+                                    select id      from test where txt = 'hello4' \
+                                    select id, txt from test where txt = 1        \
                                     select id, txt from test where txt = 'hello3' ");
             }
             catch (const exception& e)

@@ -1101,8 +1101,18 @@ public:
     driver& version(long& ver)
     {
         std::lock_guard<utils::spin_lock> lg(lock);
-        if (nullptr == cscontext || CS_SUCCEED != cs_config(cscontext,  CS_GET, CS_VERSION, reinterpret_cast<CS_VOID*>(&ver), CS_UNUSED, nullptr))
+        if (nullptr == cscontext || CS_SUCCEED != ct_config(cscontext, CS_GET, CS_VERSION, reinterpret_cast<CS_VOID*>(&ver), CS_UNUSED, nullptr))
             throw std::runtime_error(std::string(__FUNCTION__).append(": Failed to get sybase library version"));
+        return *this;
+    }
+
+    driver& version_string(std::string& ver)
+    {
+        std::array<char, 256> buf = {'\0'};
+        std::lock_guard<utils::spin_lock> lg(lock);
+        if (nullptr == cscontext || CS_SUCCEED != ct_config(cscontext, CS_GET, CS_VER_STRING, reinterpret_cast<CS_VOID*>(buf.data()), buf.size(), nullptr))
+            throw std::runtime_error(std::string(__FUNCTION__).append(": Failed to get sybase library version string"));
+        ver = buf.data();
         return *this;
     }
 
