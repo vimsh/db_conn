@@ -5,7 +5,7 @@ Header files based C++ database connection API based on KISS principle
 
 ### The why?
 
-I had a hard time finding a free open source C++ Sybase driver that would be lightweight with no dependencies, easy to add and use, having a generic extensible interface in case database would be switched later on.
+I had a hard time finding a free open source C++ Sybase driver that would be lightweight with no dependencies, easy to add and use, having a generic extensible interface in case database would be switched later on. Since then I also added SQLite driver.
 
 
 ### Thread safety:
@@ -22,6 +22,7 @@ It's up to the users to decide whether to use (and what kind) any synchronizatio
 ### Currently supported databases:
 
 * Sybase ASE (ASA was not tested) - see sybase_example.cpp
+* SQLite - see sqlite_example.cpp
 
 
 ### Development state:
@@ -31,7 +32,7 @@ The code has not been extensively tested, thus there could be some bugs.
 Especial concerns would be the large data type (text, blob, unitext) and utf support.
 
 
-### Usage example
+### Usage example (same for all drivers for supported features - see sample files)
 
 @code
     
