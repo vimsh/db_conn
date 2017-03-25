@@ -33,6 +33,7 @@ namespace vgi { namespace dbconn { namespace dbd { namespace sybase {
 static auto TRUE = CS_TRUE;
 static auto FALSE = CS_FALSE;
 
+using Locale = CS_LOCALE;
 using Context = CS_CONTEXT;
 using Connection = CS_CONNECTION;
 using ServerMessage = CS_SERVERMSG;
@@ -985,6 +986,8 @@ class driver : public idriver
 public:
     ~driver()
     {
+        if (cslocale != nullptr && cscontext != nullptr)
+            cs_loc_drop(cscontext, cslocale);
         destroy(cscontext);
     }
 
@@ -1210,6 +1213,7 @@ protected:
 
     void allocate(Context*& cs_context, CS_INT version)
     {
+        destroy(cs_context);
         if (CS_SUCCEED != cs_ctx_alloc(version, &cs_context))
             throw std::runtime_error(std::string(__FUNCTION__).append(": Failed to allocate context struct"));
         if (CS_SUCCEED != ct_init(cs_context, version))
@@ -1221,12 +1225,13 @@ protected:
 
     void destroy(Context*& cs_context)
     {
-        if (cslocale != nullptr)
-            cs_loc_drop(cscontext, cslocale);
-        if (CS_SUCCEED != ct_exit(cs_context, CS_UNUSED))
-            ct_exit(cs_context, CS_FORCE_EXIT);
-        cs_ctx_drop(cs_context);
-        cs_context = nullptr;
+        if (cs_context != nullptr)
+        {
+            if (CS_SUCCEED != ct_exit(cs_context, CS_UNUSED))
+                ct_exit(cs_context, CS_FORCE_EXIT);
+            cs_ctx_drop(cs_context);
+            cs_context = nullptr;
+        }
     }
 
     CS_INT version()
@@ -1275,10 +1280,10 @@ protected:
 #endif
                 }
             }
-            destroy(cs_context);
         }
         catch (...)
         { }
+        destroy(cs_context);
         return version;
     }
 
@@ -1294,7 +1299,7 @@ private:
         "CS_SV_FATAL"
     }};
 
-    CS_LOCALE* cslocale = nullptr;
+    Locale* cslocale = nullptr;
     Context* cscontext = nullptr;
     CS_INT dbg_flag = 0;
     std::string protofile;

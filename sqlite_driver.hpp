@@ -807,18 +807,15 @@ public:
         cancel();
         command = cmd;
         command.erase(std::find_if(command.rbegin(), command.rend(), std::not1(std::ptr_fun<int, int>(std::isspace))).base(), command.end());
-        size_t plen = 0U;
-        std::vector<sqlite3_stmt*> stmts;
-        sqlite3_stmt* stmt;
+        size_t plen = 0;
         while (command.length() > 0 && plen != command.length())
         {
             command.erase(command.begin(), std::find_if(command.begin(), command.end(), std::not1(std::ptr_fun<int, int>(std::isspace))));
-            prepare(command, &stmt);
-            stmts.push_back(stmt);
+            sqlite_stmts.push_back(nullptr);
+            prepare(command, &sqlite_stmts[sqlite_stmts.size() - 1]);
             plen = command.length();
             command = tail;
         }
-        sqlite_stmts = stmts;
         return fetch();
     }
 
@@ -1043,7 +1040,7 @@ private:
     std::string command;
     result_set rs;
     struct tm stm;
-};
+}; // statement
 
 
 dbi::istatement* connection::get_statement(dbi::iconnection& iconn)

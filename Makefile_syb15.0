@@ -11,13 +11,13 @@ CC       = /opt/gcc/bin/g++
 CFLAGS   = -std=c++1y -Wall -Wno-unused -Wno-sequence-point -Wno-parentheses -c -ggdb3 -m64 -pthread -DSYB_LP64 -D_REENTRANT
 
 # sybase libraries to include in the build
-CTLIB    = -lsybct64   # client library
-CSLIB    = -lsybcs64   # cs library
-TCLIB    = -lsybtcl64  # transport control layer
-COMLIB   = -lsybcomn64 # internal shared utility library
-INTLLIB  = -lsybintl64 # internationalization support library
+CTLIB    = -lsybct_r64   # client library
+CSLIB    = -lsybcs_r64   # cs library
+TCLIB    = -lsybtcl_r64  # transport control layer
+COMLIB   = -lsybcomn_r64 # internal shared utility library
+INTLLIB  = -lsybintl_r64 # internationalization support library
+BLKLIB   = -lsybblk_r64  # bulk copy routines
 UNICLIB  = -lsybunic64 # unicode library
-BLKLIB   = -lsybblk64  # bulk copy routines
 SYSLIBS  = -Wl,-Bdynamic -ldl -lpthread -lnsl -lm
 LIBS     = -Bstatic $(LIBPATH) $(CTLIB) $(CSLIB) $(TCLIB) $(COMLIB) $(INTLLIB) $(UNICLIB) $(SYSLIBS)
 
