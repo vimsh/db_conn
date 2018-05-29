@@ -100,7 +100,8 @@ private:
 
         void allocate(const size_t size)
         {
-            data.resize(size, '\0');
+            data.resize(size);
+            std::memset(data.data(), 0, size);
         }
 
         operator char*()
@@ -400,7 +401,7 @@ public:
             default:
                 throw std::runtime_error(std::string(__FUNCTION__).append(": Invalid column data type (supported: char, varchar, text)"));
         }
-        return std::move(std::string(columndata[col_idx]));
+        return std::move(std::string((char*)columndata[col_idx], 0, columndata[col_idx].data.size()));
     }
 
     virtual int get_date(size_t col_idx)
@@ -472,7 +473,7 @@ public:
             default:
                 throw std::runtime_error(std::string(__FUNCTION__).append(": Invalid column data type: ").append(std::to_string(columns[col_idx].datatype)));
         }
-        return std::u16string(reinterpret_cast<char16_t*>((char*)columndata[col_idx]));
+        return std::move(std::u16string(reinterpret_cast<char16_t*>((char*)columndata[col_idx]), 0, columndata[col_idx].data.size() / sizeof(char16_t)));
     }
 
     virtual std::vector<uint8_t> get_binary(size_t col_idx)
