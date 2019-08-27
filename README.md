@@ -34,7 +34,9 @@ Especial concerns would be the large data type (text, blob, unitext) and utf sup
 
 ### Usage example (same for all drivers for supported features - see sample files)
 
-NOTE: Please keep in mind that you should not include concrete driver (such as eg sybase_driver.hpp) .hpp file in your header file. You should just include driver.hpp in your header file and then in you .cpp file you can include concrete driver file.
+NOTE 1: You need to download and install specific database client (and if separate an SDK) for your platform.
+
+NOTE 2: Please keep in mind that you should not include concrete driver (such as eg sybase_driver.hpp) .hpp file in your header file. You should just include driver.hpp in your header file and then in you .cpp file you can include concrete driver file.
 
 @code
     
